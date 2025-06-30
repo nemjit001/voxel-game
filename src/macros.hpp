@@ -1,0 +1,6 @@
+#pragma once
+
+#define GAME_BUILD_TYPE_DEBUG	(!NDEBUG)
+#define GAME_BUILD_TYPE_RELEASE	(NDEBUG > 0)
+
+#define GAME_PLATFORM_WINDOWS	(_WIN32 > 0)
