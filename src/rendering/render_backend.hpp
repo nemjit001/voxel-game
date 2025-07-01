@@ -46,11 +46,12 @@ public:
 	/// @param size 
 	void resizeSwapBuffers(FramebufferSize const& size);
 
-	FramebufferSize getFramebufferSize() const	{ return m_framebufferSize; }
-	bool			hasSRGBFramebuffer() const	{ return m_surfaceInfo.isSRGB; }
-	WGPUInstance	getInstance() const			{ return m_instance; }
-	WGPUSurface		getSurface() const			{ return m_surface; }
-	WGPUDevice		getDevice() const			{ return m_device; }
+	FramebufferSize		getFramebufferSize() const	{ return m_framebufferSize; }
+	bool				hasSRGBFramebuffer() const	{ return m_surfaceInfo.isSRGB; }
+	WGPUTextureFormat	getSwapFormat() const		{ return m_surfaceInfo.preferredFormat; }
+	WGPUInstance		getInstance() const			{ return m_instance; }
+	WGPUSurface			getSurface() const			{ return m_surface; }
+	WGPUDevice			getDevice() const			{ return m_device; }
 
 private:
 	/// @brief Used to store some info on the currently configured surface.

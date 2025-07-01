@@ -23,6 +23,7 @@ FetchContent_Declare(glfw
     GIT_SHALLOW     TRUE
 )
 
+set(SPDLOG_WCHAR_SUPPORT ON)
 FetchContent_Declare(spdlog
     GIT_REPOSITORY  https://github.com/gabime/spdlog.git
     GIT_TAG         v1.15.3
@@ -50,15 +51,14 @@ add_executable(VoxelGame
     "src/core/files.cpp"
     "src/core/files.hpp"
     "src/core/timer.hpp"
-    "src/core/world.hpp"
     "src/rendering/render_backend.cpp"
     "src/rendering/render_backend.hpp"
+    "src/rendering/vertex.hpp"
 )
 target_compile_features(VoxelGame PRIVATE cxx_std_17)
 target_include_directories(VoxelGame PRIVATE "src/")
 target_link_libraries(VoxelGame PRIVATE EnTT::EnTT glfw spdlog webgpu glfw3webgpu)
 target_enable_extended_warnings(VoxelGame)
-
 target_copy_webgpu_binaries(VoxelGame)
 target_register_assets(VoxelGame
     "assets/shaders/shaders.wgsl"
