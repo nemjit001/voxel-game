@@ -65,14 +65,74 @@ Game::Game()
     SPDLOG_INFO("Initializing render backend");
     m_renderbackend = std::make_shared<RenderBackend>(m_pWindow);
 
+    // Set up a depth-stencil target for rendering
+    {
+        FramebufferSize const swapFramebufferSize = m_renderbackend->getFramebufferSize();
+        WGPUTextureDescriptor depthStencilTargetDesc{};
+        depthStencilTargetDesc.nextInChain = nullptr;
+        depthStencilTargetDesc.label = "Depth Stencil Target";
+        depthStencilTargetDesc.usage = WGPUTextureUsage_RenderAttachment;
+        depthStencilTargetDesc.dimension = WGPUTextureDimension_2D;
+        depthStencilTargetDesc.size.width = swapFramebufferSize.width;
+        depthStencilTargetDesc.size.height = swapFramebufferSize.height;
+        depthStencilTargetDesc.size.depthOrArrayLayers = 1;
+        depthStencilTargetDesc.format = WGPUTextureFormat_Depth24PlusStencil8;
+        depthStencilTargetDesc.mipLevelCount = 1;
+        depthStencilTargetDesc.sampleCount = 1;
+        depthStencilTargetDesc.viewFormatCount = 0;
+        depthStencilTargetDesc.viewFormats = nullptr;
+
+        m_depthStencilTarget = wgpuDeviceCreateTexture(m_renderbackend->getDevice(), &depthStencilTargetDesc);
+        m_depthStencilTargetView = wgpuTextureCreateView(m_depthStencilTarget, nullptr /* default view */);
+    }
+
     // Set up a graphics pipeline for rendering
     {
+        // Create scene data bind group
+        WGPUBindGroupLayoutEntry sceneDataCameraBinding{};
+        sceneDataCameraBinding.nextInChain = nullptr;
+        sceneDataCameraBinding.binding = 0;
+        sceneDataCameraBinding.visibility = WGPUShaderStage_Vertex;
+        sceneDataCameraBinding.buffer.nextInChain = nullptr;
+        sceneDataCameraBinding.buffer.type = WGPUBufferBindingType_Uniform;
+        sceneDataCameraBinding.buffer.hasDynamicOffset = false;
+        sceneDataCameraBinding.buffer.minBindingSize = 0; // Can be kept zero, should be sizeof(CameraUniform)
+
+        WGPUBindGroupLayoutEntry sceneDataBindGroupEntries[] = { sceneDataCameraBinding, };
+        WGPUBindGroupLayoutDescriptor sceneDataBindGroupLayoutDesc{};
+        sceneDataBindGroupLayoutDesc.nextInChain = nullptr;
+        sceneDataBindGroupLayoutDesc.label = "Scene Data Bind Group";
+        sceneDataBindGroupLayoutDesc.entryCount = std::size(sceneDataBindGroupEntries);
+        sceneDataBindGroupLayoutDesc.entries = sceneDataBindGroupEntries;
+
+        m_sceneDataBindGroupLayout = wgpuDeviceCreateBindGroupLayout(m_renderbackend->getDevice(), &sceneDataBindGroupLayoutDesc);
+
+        // Create object data bind group
+        WGPUBindGroupLayoutEntry objectDataObjectTransformBinding{};
+        objectDataObjectTransformBinding.nextInChain = nullptr;
+        objectDataObjectTransformBinding.binding = 0;
+        objectDataObjectTransformBinding.visibility = WGPUShaderStage_Vertex;
+        objectDataObjectTransformBinding.buffer.nextInChain = nullptr;
+        objectDataObjectTransformBinding.buffer.type = WGPUBufferBindingType_Uniform;
+        objectDataObjectTransformBinding.buffer.hasDynamicOffset = false;
+        objectDataObjectTransformBinding.buffer.minBindingSize = 0; // Can be kept zero, should be sizeof(ObjectTransformUniform)
+
+        WGPUBindGroupLayoutEntry objectDataBindGroupEntries[] = { objectDataObjectTransformBinding, };
+        WGPUBindGroupLayoutDescriptor objectDataBindGroupLayoutDesc{};
+        objectDataBindGroupLayoutDesc.nextInChain = nullptr;
+        objectDataBindGroupLayoutDesc.label = "Object Data Bind Group";
+        objectDataBindGroupLayoutDesc.entryCount = std::size(objectDataBindGroupEntries);
+        objectDataBindGroupLayoutDesc.entries = objectDataBindGroupEntries;
+
+        m_objectDataBindGroupLayout = wgpuDeviceCreateBindGroupLayout(m_renderbackend->getDevice(), &objectDataBindGroupLayoutDesc);
+
         // Create pipeline layout
+        WGPUBindGroupLayout bindGroupLayouts[] = { m_sceneDataBindGroupLayout, m_objectDataBindGroupLayout, };
         WGPUPipelineLayoutDescriptor layoutDesc{};
         layoutDesc.nextInChain = nullptr;
         layoutDesc.label = "Pipeline Layout";
-        layoutDesc.bindGroupLayoutCount = 0;
-        layoutDesc.bindGroupLayouts = nullptr;
+        layoutDesc.bindGroupLayoutCount = std::size(bindGroupLayouts);
+        layoutDesc.bindGroupLayouts = bindGroupLayouts;
 
         m_pipelineLayout = wgpuDeviceCreatePipelineLayout(m_renderbackend->getDevice(), &layoutDesc);
 
@@ -144,6 +204,19 @@ Game::Game()
         primitiveState.frontFace = WGPUFrontFace_CCW;
         primitiveState.cullMode = WGPUCullMode_None;
 
+        WGPUDepthStencilState depthStencilState{};
+        depthStencilState.nextInChain = nullptr;
+        depthStencilState.format = WGPUTextureFormat_Depth24PlusStencil8;
+        depthStencilState.depthWriteEnabled = true;
+        depthStencilState.depthCompare = WGPUCompareFunction_Less;
+        depthStencilState.stencilFront = { WGPUCompareFunction_Always, WGPUStencilOperation_Keep, WGPUStencilOperation_Keep, WGPUStencilOperation_Keep };
+        depthStencilState.stencilBack = { WGPUCompareFunction_Always, WGPUStencilOperation_Keep, WGPUStencilOperation_Keep, WGPUStencilOperation_Keep };
+        depthStencilState.stencilReadMask = UINT32_MAX;
+        depthStencilState.stencilWriteMask = UINT32_MAX;
+        depthStencilState.depthBias = 0;
+        depthStencilState.depthBiasSlopeScale = 0.0F;
+        depthStencilState.depthBiasClamp = 0.0F;
+
         WGPUMultisampleState multisampleState{};
         multisampleState.nextInChain = nullptr;
         multisampleState.count = 1;
@@ -157,7 +230,7 @@ Game::Game()
         pipelineDesc.vertex = vertexState;
         pipelineDesc.fragment = &fragmentState;
         pipelineDesc.primitive = primitiveState;
-        pipelineDesc.depthStencil = nullptr;
+        pipelineDesc.depthStencil = &depthStencilState;
         pipelineDesc.multisample = multisampleState;
 
         m_pipeline = wgpuDeviceCreateRenderPipeline(m_renderbackend->getDevice(), &pipelineDesc);
@@ -175,8 +248,17 @@ Game::~Game()
     SPDLOG_INFO("Shutting down game...");
 
     // TEMP destroy rendering stuff
-    wgpuRenderPipelineRelease(m_pipeline);
-    wgpuPipelineLayoutRelease(m_pipelineLayout);
+    {
+        // Destroy pipeline state
+        wgpuRenderPipelineRelease(m_pipeline);
+        wgpuPipelineLayoutRelease(m_pipelineLayout);
+        wgpuBindGroupLayoutRelease(m_objectDataBindGroupLayout);
+        wgpuBindGroupLayoutRelease(m_sceneDataBindGroupLayout);
+
+        // Destroy depth-stencil target
+        wgpuTextureViewRelease(m_depthStencilTargetView);
+        wgpuTextureRelease(m_depthStencilTarget);
+    }
 
     // Destroy platform window
     glfwDestroyWindow(m_pWindow);
@@ -221,18 +303,32 @@ void Game::update()
         colorAttachment.storeOp = WGPUStoreOp_Store;
         colorAttachment.clearValue = WGPUColor{ 0.0F, 0.0F, 0.0F, 0.0F };
 
+        WGPURenderPassDepthStencilAttachment depthStencilAttachment{};
+        depthStencilAttachment.view = m_depthStencilTargetView;
+        depthStencilAttachment.depthLoadOp = WGPULoadOp_Clear;
+        depthStencilAttachment.depthStoreOp = WGPUStoreOp_Discard;
+        depthStencilAttachment.depthClearValue = 1.0F;
+        depthStencilAttachment.depthReadOnly = false;
+        depthStencilAttachment.stencilLoadOp = WGPULoadOp_Undefined;
+        depthStencilAttachment.stencilStoreOp = WGPUStoreOp_Undefined;
+        depthStencilAttachment.stencilClearValue = 0;
+        depthStencilAttachment.stencilReadOnly = false;
+
         WGPURenderPassDescriptor renderPassDesc{};
         renderPassDesc.nextInChain = nullptr;
         renderPassDesc.label = "Render Pass";
         renderPassDesc.colorAttachmentCount = 1;
         renderPassDesc.colorAttachments = &colorAttachment;
-        renderPassDesc.depthStencilAttachment = nullptr;
+        renderPassDesc.depthStencilAttachment = &depthStencilAttachment;
         renderPassDesc.occlusionQuerySet = nullptr;
         renderPassDesc.timestampWrites = nullptr;
 
         WGPURenderPassEncoder renderPass = wgpuCommandEncoderBeginRenderPass(frameCommandEncoder, &renderPassDesc);
+
+        // Record opaque object pass
         wgpuRenderPassEncoderSetPipeline(renderPass, m_pipeline);
 
+        // Finish forward render pass
         wgpuRenderPassEncoderEnd(renderPass);
 
         // Finish command recording
@@ -255,6 +351,30 @@ void Game::onResize(uint32_t width, uint32_t height)
 {
     SPDLOG_INFO("Window resized ({} x {})", width, height);
     m_renderbackend->resizeSwapBuffers({ width, height });
+
+    // Recreate depth-stencil target
+    {
+        wgpuTextureViewRelease(m_depthStencilTargetView);
+        wgpuTextureRelease(m_depthStencilTarget);
+
+        FramebufferSize const swapFramebufferSize = m_renderbackend->getFramebufferSize();
+        WGPUTextureDescriptor depthStencilTargetDesc{};
+        depthStencilTargetDesc.nextInChain = nullptr;
+        depthStencilTargetDesc.label = "Depth Stencil Target";
+        depthStencilTargetDesc.usage = WGPUTextureUsage_RenderAttachment;
+        depthStencilTargetDesc.dimension = WGPUTextureDimension_2D;
+        depthStencilTargetDesc.size.width = swapFramebufferSize.width;
+        depthStencilTargetDesc.size.height = swapFramebufferSize.height;
+        depthStencilTargetDesc.size.depthOrArrayLayers = 1;
+        depthStencilTargetDesc.format = WGPUTextureFormat_Depth24PlusStencil8;
+        depthStencilTargetDesc.mipLevelCount = 1;
+        depthStencilTargetDesc.sampleCount = 1;
+        depthStencilTargetDesc.viewFormatCount = 0;
+        depthStencilTargetDesc.viewFormats = nullptr;
+
+        m_depthStencilTarget = wgpuDeviceCreateTexture(m_renderbackend->getDevice(), &depthStencilTargetDesc);
+        m_depthStencilTargetView = wgpuTextureCreateView(m_depthStencilTarget, nullptr /* default view */);
+    }
 }
 
 bool Game::isRunning() const

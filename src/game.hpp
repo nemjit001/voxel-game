@@ -34,7 +34,12 @@ private:
     Timer                           m_frameTimer    = {};
     std::shared_ptr<RenderBackend>  m_renderbackend = {};
 
-    // TEMP rendering stuff before rendering works
-    WGPUPipelineLayout              m_pipelineLayout    = nullptr;
-    WGPURenderPipeline              m_pipeline          = nullptr;
+    // TEMP rendering stuff before rendering abstraction is added
+    WGPUTexture                     m_depthStencilTarget = nullptr;
+    WGPUTextureView                 m_depthStencilTargetView = nullptr;
+
+    WGPUBindGroupLayout             m_sceneDataBindGroupLayout = nullptr;
+    WGPUBindGroupLayout             m_objectDataBindGroupLayout = nullptr;
+    WGPUPipelineLayout              m_pipelineLayout = nullptr;
+    WGPURenderPipeline              m_pipeline = nullptr;
 };
