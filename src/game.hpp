@@ -29,17 +29,17 @@ public:
     void onResize(uint32_t width, uint32_t height);
 
 private:
-    bool                            m_running       = false;
-    GLFWwindow*                     m_pWindow       = nullptr;
-    Timer                           m_frameTimer    = {};
-    std::shared_ptr<RenderBackend>  m_renderbackend = {};
+    bool                                m_running       = false;
+    GLFWwindow*                         m_pWindow       = nullptr;
+    core::Timer                         m_frameTimer    = {};
+    std::shared_ptr<gfx::RenderBackend> m_renderbackend = {};
 
     // TEMP rendering stuff before rendering abstraction is added
-    WGPUTexture                     m_depthStencilTarget = nullptr;
-    WGPUTextureView                 m_depthStencilTargetView = nullptr;
+    WGPUTexture                         m_depthStencilTarget = nullptr;
+    WGPUTextureView                     m_depthStencilTargetView = nullptr;
 
-    WGPUBindGroupLayout             m_sceneDataBindGroupLayout = nullptr;
-    WGPUBindGroupLayout             m_objectDataBindGroupLayout = nullptr;
-    WGPUPipelineLayout              m_pipelineLayout = nullptr;
-    WGPURenderPipeline              m_pipeline = nullptr;
+    WGPUBindGroupLayout                 m_sceneDataBindGroupLayout = nullptr;
+    WGPUBindGroupLayout                 m_objectDataBindGroupLayout = nullptr;
+    WGPUPipelineLayout                  m_pipelineLayout = nullptr;
+    WGPURenderPipeline                  m_pipeline = nullptr;
 };

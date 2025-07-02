@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-namespace fs
+namespace core::fs
 {
 	/// @brief Get the current program directory.
 	/// @return 
@@ -19,4 +19,4 @@ namespace fs
 	/// @param path File path.
 	/// @return The binary file contents or an empty vector on failure.
 	std::vector<uint8_t> readBinaryFile(std::string const& path);
-} // namespace fs
+} // namespace core::fs

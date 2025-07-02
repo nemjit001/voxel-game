@@ -4,10 +4,6 @@ enable_testing()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# set(CMAKE_CXX_STANDARD 17)
-# set(CMAKE_CXX_STANDARD_REQUIRED ON)
-# set(CMAKE_CXX_EXTENSIONS OFF)
-
 include("cmake/utils.cmake")
 include(FetchContent)
 
@@ -20,6 +16,12 @@ FetchContent_Declare(entt
 FetchContent_Declare(glfw
     GIT_REPOSITORY  https://github.com/glfw/glfw.git
     GIT_TAG         3.4
+    GIT_SHALLOW     TRUE
+)
+
+FetchContent_Declare(glm
+    GIT_REPOSITORY  https://github.com/g-truc/glm.git
+    GIT_TAG         master
     GIT_SHALLOW     TRUE
 )
 
@@ -41,7 +43,7 @@ FetchContent_Declare(glfw3webgpu
     GIT_SHALLOW     TRUE
 )
 
-FetchContent_MakeAvailable(entt glfw spdlog webgpu glfw3webgpu)
+FetchContent_MakeAvailable(entt glfw glm spdlog webgpu glfw3webgpu)
 
 add_executable(VoxelGame
     "src/main.cpp"
@@ -52,11 +54,14 @@ add_executable(VoxelGame
     "src/core/timer.hpp"
     "src/rendering/render_backend.cpp"
     "src/rendering/render_backend.hpp"
-    "src/rendering/vertex.hpp"
+    "src/rendering/vertex_layout.hpp"
+    "src/components/camera.hpp"
+    "src/components/transform.hpp"
 )
 target_compile_features(VoxelGame PRIVATE cxx_std_17)
 target_include_directories(VoxelGame PRIVATE "src/")
-target_link_libraries(VoxelGame PRIVATE EnTT::EnTT glfw spdlog webgpu glfw3webgpu)
+target_link_libraries(VoxelGame PRIVATE EnTT::EnTT glfw glm::glm spdlog webgpu glfw3webgpu)
+target_compile_definitions(VoxelGame PRIVATE GLM_FORCE_RADIANS GLM_FORCE_RIGHT_HANDED GLM_FORCE_DEPTH_ZERO_TO_ONE)
 target_enable_extended_warnings(VoxelGame)
 target_copy_webgpu_binaries(VoxelGame)
 target_register_assets(VoxelGame
