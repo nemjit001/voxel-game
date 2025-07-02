@@ -9,7 +9,7 @@
 #include <windows.h>
 #endif	// GAME_PLATFORM_WINDOWS
 
-namespace fs
+namespace core::fs
 {
 	std::string getProgramDirectory()
 	{
@@ -49,4 +49,4 @@ namespace fs
 
 		return contents;
 	}
-} // namespace fs
+} // namespace core::fs

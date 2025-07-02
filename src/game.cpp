@@ -5,7 +5,7 @@
 
 #include "macros.hpp"
 #include "core/files.hpp"
-#include "rendering/vertex.hpp"
+#include "rendering/vertex_layout.hpp"
 
 static constexpr char const*    WINDOW_TITLE            = "Voxel Game";
 static constexpr uint32_t       DEFAULT_WINDOW_WIDTH    = 1280;
@@ -35,7 +35,7 @@ Game::Game()
 {
     // Dump some basic info
     SPDLOG_INFO("Initial window size: {} x {}", DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT);
-    SPDLOG_INFO("Program directory: {}", fs::getProgramDirectory());
+    SPDLOG_INFO("Program directory: {}", core::fs::getProgramDirectory());
 #if     GAME_BUILD_TYPE_DEBUG
     SPDLOG_WARN("Running Debug build");
 #endif  // GAME_BUILD_TYPE_DEBUG
@@ -63,11 +63,11 @@ Game::Game()
 
     // Initialize render backend
     SPDLOG_INFO("Initializing render backend");
-    m_renderbackend = std::make_shared<RenderBackend>(m_pWindow);
+    m_renderbackend = std::make_shared<gfx::RenderBackend>(m_pWindow);
 
     // Set up a depth-stencil target for rendering
     {
-        FramebufferSize const swapFramebufferSize = m_renderbackend->getFramebufferSize();
+        gfx::FramebufferSize const swapFramebufferSize = m_renderbackend->getFramebufferSize();
         WGPUTextureDescriptor depthStencilTargetDesc{};
         depthStencilTargetDesc.nextInChain = nullptr;
         depthStencilTargetDesc.label = "Depth Stencil Target";
@@ -101,7 +101,7 @@ Game::Game()
         WGPUBindGroupLayoutEntry sceneDataBindGroupEntries[] = { sceneDataCameraBinding, };
         WGPUBindGroupLayoutDescriptor sceneDataBindGroupLayoutDesc{};
         sceneDataBindGroupLayoutDesc.nextInChain = nullptr;
-        sceneDataBindGroupLayoutDesc.label = "Scene Data Bind Group";
+        sceneDataBindGroupLayoutDesc.label = "Scene Data Bind Group Layout";
         sceneDataBindGroupLayoutDesc.entryCount = std::size(sceneDataBindGroupEntries);
         sceneDataBindGroupLayoutDesc.entries = sceneDataBindGroupEntries;
 
@@ -120,7 +120,7 @@ Game::Game()
         WGPUBindGroupLayoutEntry objectDataBindGroupEntries[] = { objectDataObjectTransformBinding, };
         WGPUBindGroupLayoutDescriptor objectDataBindGroupLayoutDesc{};
         objectDataBindGroupLayoutDesc.nextInChain = nullptr;
-        objectDataBindGroupLayoutDesc.label = "Object Data Bind Group";
+        objectDataBindGroupLayoutDesc.label = "Object Data Bind Group Layout";
         objectDataBindGroupLayoutDesc.entryCount = std::size(objectDataBindGroupEntries);
         objectDataBindGroupLayoutDesc.entries = objectDataBindGroupEntries;
 
@@ -137,7 +137,7 @@ Game::Game()
         m_pipelineLayout = wgpuDeviceCreatePipelineLayout(m_renderbackend->getDevice(), &layoutDesc);
 
         // Load shader module
-        std::vector<uint8_t> const shaderBinary = fs::readBinaryFile(fs::getFullAssetPath("assets/shaders/shaders.wgsl"));
+        std::vector<uint8_t> const shaderBinary = core::fs::readBinaryFile(core::fs::getFullAssetPath("assets/shaders/shaders.wgsl"));
         std::string const shaderCode(shaderBinary.begin(), shaderBinary.end()); // Convert byte vector to string
 
         WGPUShaderModuleWGSLDescriptor wgslShaderDesc{};
@@ -155,14 +155,14 @@ Game::Game()
 
         // Set up pipeline state
         WGPUVertexAttribute vertexAttributes[] = {
-            { WGPUVertexFormat_Float32x3, offsetof(Vertex, position), 0 },
-            { WGPUVertexFormat_Float32x3, offsetof(Vertex, normal), 1 },
-            { WGPUVertexFormat_Float32x3, offsetof(Vertex, tangent), 2 },
-            { WGPUVertexFormat_Float32x2, offsetof(Vertex, texcoord), 3 },
+            { WGPUVertexFormat_Float32x3, offsetof(gfx::Vertex, position), 0 },
+            { WGPUVertexFormat_Float32x3, offsetof(gfx::Vertex, normal), 1 },
+            { WGPUVertexFormat_Float32x3, offsetof(gfx::Vertex, tangent), 2 },
+            { WGPUVertexFormat_Float32x2, offsetof(gfx::Vertex, texcoord), 3 },
         };
 
         WGPUVertexBufferLayout vertexBufferLayouts[] = {
-            { sizeof(Vertex), WGPUVertexStepMode_Vertex, std::size(vertexAttributes), vertexAttributes},
+            { sizeof(gfx::Vertex), WGPUVertexStepMode_Vertex, std::size(vertexAttributes), vertexAttributes},
         };
 
         WGPUVertexState vertexState{};
@@ -279,14 +279,18 @@ void Game::update()
 
     // Render frame
     {
-        FrameState frame{};
+        // Acquire new frame
+        gfx::FrameState frame{};
         if (!m_renderbackend->newFrame(frame))
         {
             // Reconfigure framebuffer to be sure
-            FramebufferSize const fbsize = m_renderbackend->getFramebufferSize();
+            gfx::FramebufferSize const fbsize = m_renderbackend->getFramebufferSize();
             m_renderbackend->resizeSwapBuffers(fbsize);
             return;
         }
+
+        // Prepare frame uniforms for render passes
+        //
 
         // Start command recording for frame
         WGPUCommandEncoderDescriptor encoderDesc{};
@@ -357,7 +361,7 @@ void Game::onResize(uint32_t width, uint32_t height)
         wgpuTextureViewRelease(m_depthStencilTargetView);
         wgpuTextureRelease(m_depthStencilTarget);
 
-        FramebufferSize const swapFramebufferSize = m_renderbackend->getFramebufferSize();
+        gfx::FramebufferSize const swapFramebufferSize = m_renderbackend->getFramebufferSize();
         WGPUTextureDescriptor depthStencilTargetDesc{};
         depthStencilTargetDesc.nextInChain = nullptr;
         depthStencilTargetDesc.label = "Depth Stencil Target";
