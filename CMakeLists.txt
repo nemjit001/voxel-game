@@ -55,6 +55,7 @@ add_executable(VoxelGame
     "src/rendering/render_backend.cpp"
     "src/rendering/render_backend.hpp"
     "src/rendering/vertex_layout.hpp"
+    "src/components/camera.cpp"
     "src/components/camera.hpp"
     "src/components/transform.hpp"
 )

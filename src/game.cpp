@@ -330,6 +330,9 @@ void Game::update()
         WGPURenderPassEncoder renderPass = wgpuCommandEncoderBeginRenderPass(frameCommandEncoder, &renderPassDesc);
 
         // Record opaque object pass
+        gfx::FramebufferSize const swapFramebufferSize = m_renderbackend->getFramebufferSize();
+        wgpuRenderPassEncoderSetViewport(renderPass, 0.0F, 0.0F, static_cast<float>(swapFramebufferSize.width), static_cast<float>(swapFramebufferSize.height), 0.0F, 1.0F);
+        wgpuRenderPassEncoderSetScissorRect(renderPass, 0, 0, swapFramebufferSize.width, swapFramebufferSize.height);
         wgpuRenderPassEncoderSetPipeline(renderPass, m_pipeline);
 
         // Finish forward render pass
