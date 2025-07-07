@@ -1,55 +1,69 @@
 {
-    "version": 8,
-    "cmakeMinimumRequired": {
-        "major": 3,
-        "minor": 25
+  "version": 8,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja Multi-Config",
+      "binaryDir": "${sourceDir}/build/${presetName}"
     },
-    "configurePresets": [
-        {
-            "name": "base",
-            "hidden": true,
-            "generator": "Ninja Multi-Config",
-            "binaryDir": "${sourceDir}/build/${presetName}"
-        },
-        {
-            "name": "clang",
-            "inherits": "base",
-            "cacheVariables": {
-                "CMAKE_C_COMPILER": "clang",
-                "CMAKE_CXX_COMPILER": "clang++"
-            }
-        },
-        {
-            "name": "vs22",
-            "inherits": "base",
-            "generator": "Visual Studio 17 2022",
-            "condition": {
-                "type": "equals",
-                "lhs": "${hostSystemName}",
-                "rhs": "Windows"
-            }
+    {
+      "name": "clang-x64",
+      "inherits": "base",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "toolset": "Clang",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "intelliSenseMode": "windows-clang-x64"
         }
-    ],
-    "buildPresets": [
-        {
-            "name": "clang-debug",
-            "configurePreset": "clang",
-            "configuration": "Debug"
-        },
-        {
-            "name": "clang-release",
-            "configurePreset": "clang",
-            "configuration": "Release"
-        },
-        {
-            "name": "vs22-debug",
-            "configurePreset": "vs22",
-            "configuration": "Debug"
-        },
-        {
-            "name": "vs22-release",
-            "configurePreset": "vs22",
-            "configuration": "Release"
-        }
-    ]
+      }
+    },
+    {
+      "name": "vs22-x64",
+      "inherits": "base",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "generator": "Visual Studio 17 2022",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "clang-debug-x64",
+      "configurePreset": "clang-x64",
+      "configuration": "Debug"
+    },
+    {
+      "name": "clang-release-x64",
+      "configurePreset": "clang-x64",
+      "configuration": "Release"
+    },
+    {
+      "name": "vs22-debug-x64",
+      "configurePreset": "vs22-x64",
+      "configuration": "Debug"
+    },
+    {
+      "name": "vs22-release-x64",
+      "configurePreset": "vs22-x64",
+      "configuration": "Release"
+    }
+  ]
 }
