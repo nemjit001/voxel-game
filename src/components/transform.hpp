@@ -5,7 +5,7 @@
 #include <glm/gtc/quaternion.hpp>
 
 /// @brief World transform component to give entities a position in this world.
-struct Transform
+class Transform
 {
 public:
 	/// @brief Calculate the world-space affine transformation matrix for this transform.

@@ -1,5 +1,7 @@
 #include "camera.hpp"
 
+#include <cassert>
+
 Camera::Camera(PerspectiveCamera const& perspective)
 	:
 	type(CameraType::Perspective),
@@ -16,22 +18,23 @@ Camera::Camera(OrthographicCamera const& ortho)
 	params.ortho = ortho;
 }
 
-glm::mat4 Camera::matrix() const
+glm::mat4 Camera::matrix(float aspectRatio) const
 {
 	if (type == CameraType::Perspective)
 	{
 		PerspectiveCamera const camera = params.perspective;
-		return glm::perspective(glm::radians(camera.yFOV), camera.aspectRatio, camera.zNear, camera.zFar);
+		return glm::perspective(glm::radians(camera.yFOV), aspectRatio, camera.zNear, camera.zFar);
 	}
 	else
 	{
 		OrthographicCamera const camera = params.ortho;
-		float const halfX = camera.xMag * 0.5F;
-		float const halfY = camera.yMag * 0.5f;
+		float const halfY = camera.size * 0.5F;
+		float const halfX = halfY * aspectRatio;
 
 		return glm::ortho(-halfX, halfX, -halfY, halfY, camera.zNear, camera.zFar);
 	}
 
 	// Unreachable code
+	assert(false && "Unreachable code reached");
 	return glm::identity<glm::mat4>();
 }

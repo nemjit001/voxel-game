@@ -13,23 +13,21 @@ enum class CameraType
 /// @brief Perspective camera params.
 struct PerspectiveCamera
 {
-	float yFOV			= 60.0F;
-	float aspectRatio	= 1.0F;
-	float zNear			= 0.1F;
-	float zFar			= 1000.0F;
+	float yFOV	= 60.0F;
+	float zNear	= 0.1F;
+	float zFar	= 1000.0F;
 };
 
 /// @brief Orthographic camera params.
 struct OrthographicCamera
 {
-	float xMag	= 1.0F;
-	float yMag	= 1.0F;
+	float size	= 1.0F; // Projection size in the vertical direction
 	float zNear = 0.1F;
 	float zFar	= 1000.0F;
 };
 
 /// @brief Camera component to render a scene.
-struct Camera
+class Camera
 {
 public:
 	/// @brief Create a perspective camera.
@@ -47,8 +45,9 @@ public:
 	Camera& operator=(Camera const&) = delete;
 
 	/// @brief Retrieve this camera's projection matrix.
+	/// @param aspectRatio Camera aspect ratio used to calculate projection matrix.
 	/// @return 
-	glm::mat4 matrix() const;
+	glm::mat4 matrix(float aspectRatio) const;
 
 public:
 	CameraType type = CameraType::Perspective;

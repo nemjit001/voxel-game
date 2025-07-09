@@ -1,10 +1,12 @@
 #pragma once
 
 #include <memory>
+#include <entt/entt.hpp>
 #include <GLFW/glfw3.h>
 
 #include "core/timer.hpp"
 #include "rendering/render_backend.hpp"
+#include "systems/renderer.hpp"
 
 /// @brief The Game class binds all different game systems together into a cohesive whole.
 class Game
@@ -30,16 +32,10 @@ public:
 
 private:
     bool                                m_running       = false;
+    bool                                m_windowVisible = true;
     GLFWwindow*                         m_pWindow       = nullptr;
     core::Timer                         m_frameTimer    = {};
     std::shared_ptr<gfx::RenderBackend> m_renderbackend = {};
-
-    // TEMP rendering stuff before rendering abstraction is added
-    WGPUTexture                         m_depthStencilTarget = nullptr;
-    WGPUTextureView                     m_depthStencilTargetView = nullptr;
-
-    WGPUBindGroupLayout                 m_sceneDataBindGroupLayout = nullptr;
-    WGPUBindGroupLayout                 m_objectDataBindGroupLayout = nullptr;
-    WGPUPipelineLayout                  m_pipelineLayout = nullptr;
-    WGPURenderPipeline                  m_pipeline = nullptr;
+    std::unique_ptr<entt::registry>     m_registry      = {};
+    std::unique_ptr<Renderer>           m_renderer      = {};
 };
