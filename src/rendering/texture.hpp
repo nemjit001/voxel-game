@@ -6,19 +6,32 @@
 
 namespace gfx
 {
+	/// @brief Texture dimensions for interpreting extent variables.
+	enum class TextureDimensions
+	{
+		Dim1D,
+		Dim2D,
+		Dim3D,
+	};
+
 	/// @brief Texture extent in 3 directions.
 	struct TextureExtent
 	{
 		uint32_t width;
 		uint32_t height;
-		uint32_t depth;
+		uint32_t depthOrArrayLayers;
 	};
 
 	/// @brief The Texture class stores host-side and device-side texture data.
 	class Texture
 	{
 	public:
-		Texture(TextureExtent const& extent, uint8_t components, void* pTextureData);
+		/// @brief Create a new texture object.
+		/// @param dimensions Texture dimensions, used to interpret extent values.
+		/// @param extent Texture extent in x/y/z directions, supports layered texturees.
+		/// @param components Number of color channels in this texture.
+		/// @param pTextureData Contiguous texture data, this will be copied to an internal buffer.
+		Texture(TextureDimensions dimensions, TextureExtent const& extent, uint8_t components, void* pTextureData);
 		~Texture();
 
 		Texture(Texture const&) = delete;
@@ -30,6 +43,10 @@ namespace gfx
 
 		/// @brief Clear the mesh dirty flag to indicate host and device buffers are in sync.
 		void clearDirtyFlag() { m_dirty = false; }
+
+		/// @brief Get the texture dimensionality of this texture.
+		/// @return 
+		TextureDimensions dimensions() const { return m_dimensions; }
 
 		/// @brief Get the extent of this texture.
 		/// @return 
@@ -57,6 +74,7 @@ namespace gfx
 
 	private:
 		bool					m_dirty			= true;
+		TextureDimensions		m_dimensions	= TextureDimensions::Dim1D;
 		TextureExtent			m_extent		= {};
 		uint8_t					m_components	= 0;	// Color components
 		std::vector<uint8_t>	m_data			= {};	// Texture data stored as byte array.

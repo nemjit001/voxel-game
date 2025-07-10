@@ -4,17 +4,18 @@
 
 namespace gfx
 {
-	Texture::Texture(TextureExtent const& extent, uint8_t components, void* pTextureData)
+	Texture::Texture(TextureDimensions dimensions, TextureExtent const& extent, uint8_t components, void* pTextureData)
 		:
+		m_dimensions(dimensions),
 		m_extent(extent),
 		m_components(components)
 	{
-		assert(extent.width > 0 && extent.height > 0 && extent.depth > 0 && "Texture extent cannot be 0 in any direction");
+		assert(extent.width > 0 && extent.height > 0 && extent.depthOrArrayLayers > 0 && "Texture extent cannot be 0 in any direction");
 		assert(components > 0 && components < 4 && "Components must be between 0 and 4");
 		assert(pTextureData != nullptr && "Texture data cannot be a nullptr");
 
 		// Set internal buffer size
-		size_t const size = extent.width * extent.height * extent.depth * components;
+		size_t const size = extent.width * extent.height * extent.depthOrArrayLayers * components;
 		m_data.resize(size);
 
 		// Take ownership of passed raw image buffer
