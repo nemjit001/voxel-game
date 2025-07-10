@@ -1,5 +1,7 @@
 #include "renderer.hpp"
 
+#include <spdlog/spdlog.h>
+
 #include "core/files.hpp"
 #include "rendering/vertex_layout.hpp"
 #include "components/camera.hpp"
@@ -126,8 +128,12 @@ Renderer::Renderer(std::shared_ptr<gfx::RenderBackend> renderbackend)
         m_pipelineLayout = wgpuDeviceCreatePipelineLayout(m_renderbackend->getDevice(), &layoutDesc);
 
         // Load shader module
-        std::vector<uint8_t> const shaderBinary = core::fs::readBinaryFile(core::fs::getFullAssetPath("assets/shaders/shaders.wgsl"));
+        std::string const shaderFilePath = core::fs::getFullAssetPath("assets/shaders/shaders.wgsl");
+        std::vector<uint8_t> const shaderBinary = core::fs::readBinaryFile(shaderFilePath);
         std::string const shaderCode(shaderBinary.begin(), shaderBinary.end()); // Convert byte vector to string
+        if (shaderCode.empty()) {
+            SPDLOG_ERROR("Failed to load shader file from path {}", shaderFilePath); // FIXME(nemtji001): Throw fatal error here
+        }
 
         WGPUShaderModuleWGSLDescriptor wgslShaderDesc{};
         wgslShaderDesc.chain.next = nullptr;
@@ -137,8 +143,10 @@ Renderer::Renderer(std::shared_ptr<gfx::RenderBackend> renderbackend)
         WGPUShaderModuleDescriptor shaderDesc{};
         shaderDesc.nextInChain = &wgslShaderDesc.chain;
         shaderDesc.label = "Shader";
+#if     WEBGPU_BACKEND_WGPU
         shaderDesc.hintCount = 0;
         shaderDesc.hints = nullptr;
+#endif  // WEBGPU_BACKEND_WGPU
 
         WGPUShaderModule shader = wgpuDeviceCreateShaderModule(m_renderbackend->getDevice(), &shaderDesc);
 
@@ -274,6 +282,9 @@ void Renderer::render(entt::registry& registry)
     colorAttachment.loadOp = WGPULoadOp_Clear;
     colorAttachment.storeOp = WGPUStoreOp_Store;
     colorAttachment.clearValue = WGPUColor{ 0.0F, 0.0F, 0.0F, 0.0F };
+#if     !WEBGPU_BACKEND_WGPU
+    colorAttachment.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
+#endif  // !WEBGPU_BACKEND_WGPU
 
     WGPURenderPassDepthStencilAttachment depthStencilAttachment{};
     depthStencilAttachment.view = m_depthStencilTargetView;
@@ -281,8 +292,8 @@ void Renderer::render(entt::registry& registry)
     depthStencilAttachment.depthStoreOp = WGPUStoreOp_Discard;
     depthStencilAttachment.depthClearValue = 1.0F;
     depthStencilAttachment.depthReadOnly = false;
-    depthStencilAttachment.stencilLoadOp = WGPULoadOp_Undefined;
-    depthStencilAttachment.stencilStoreOp = WGPUStoreOp_Undefined;
+    depthStencilAttachment.stencilLoadOp = WGPULoadOp_Clear;
+    depthStencilAttachment.stencilStoreOp = WGPUStoreOp_Discard;
     depthStencilAttachment.stencilClearValue = 0;
     depthStencilAttachment.stencilReadOnly = false;
 

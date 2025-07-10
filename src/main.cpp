@@ -9,6 +9,12 @@
 #include <stdexcept>
 #include <spdlog/spdlog.h>
 
+#include "macros.hpp"
+
+#if     GAME_PLATFORM_EMSCRIPTEN
+    #include <emscripten/emscripten.h>
+#endif  // GAME_PLATFORM_EMSCRIPTEN
+
 #include "game.hpp"
 
 int main(int argc, char** argv)
@@ -25,10 +31,20 @@ int main(int argc, char** argv)
 
     try
     {
+        // Create game
         Game game{};
+#if     GAME_PLATFORM_EMSCRIPTEN
+        // Enter emscripten update loop
+        emscripten_set_main_loop_arg([](void* pUserData) {
+            Game* pGame = reinterpret_cast<Game*>(pUserData);
+            pGame->update();
+        }, &game, 0, true);
+#else
+        // Enter default platform update loop
         while (game.isRunning()) {
             game.update();
         }
+#endif  // GAME_PLATFORM_EMSCRIPTEN
     }
     catch (std::exception& e)
     {

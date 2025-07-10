@@ -6,7 +6,7 @@
 #include "macros.hpp"
 
 #if		GAME_PLATFORM_WINDOWS
-#include <windows.h>
+	#include <windows.h>
 #endif	// GAME_PLATFORM_WINDOWS
 
 namespace core::fs
@@ -19,7 +19,9 @@ namespace core::fs
 		char path[MAX_PATH]{};
 		GetModuleFileNameA(nullptr /* this executable */, path, sizeof(path) - 1);
 		programPath = std::string(path);
-#endif	// GAME_PLATFORM_WINDOWS
+#elif	GAME_PLATFORM_EMSCRIPTEN
+		programPath = "/"; // Emscripten uses virtual file system mounted at root
+#endif
 
 		std::filesystem::path const programDir = std::filesystem::path(programPath).parent_path();
 		return std::filesystem::weakly_canonical(programDir).string(); // Weakly canonical since we can assume the path exists because the program is running :)

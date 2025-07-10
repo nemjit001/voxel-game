@@ -49,11 +49,17 @@ FetchContent_Declare(glfw3webgpu
     GIT_SHALLOW     TRUE
 )
 
-FetchContent_MakeAvailable(entt glfw glm spdlog stb webgpu glfw3webgpu)
+FetchContent_MakeAvailable(entt glm spdlog stb webgpu glfw3webgpu)
+
+# Fetch platform specific dependencies
+if (NOT EMSCRIPTEN)
+    FetchContent_MakeAvailable(glfw)
+endif()
 
 add_library(stb INTERFACE)
 target_include_directories(stb INTERFACE "${stb_SOURCE_DIR}")
 
+# Set up VoxelGame target
 add_executable(VoxelGame
     "src/main.cpp"
     "src/game.cpp"
@@ -77,10 +83,30 @@ add_executable(VoxelGame
 )
 target_compile_features(VoxelGame PRIVATE cxx_std_17)
 target_include_directories(VoxelGame PRIVATE "src/")
-target_link_libraries(VoxelGame PRIVATE EnTT::EnTT glfw glm::glm spdlog stb webgpu glfw3webgpu)
+target_link_libraries(VoxelGame PRIVATE EnTT::EnTT glm::glm spdlog stb webgpu glfw3webgpu)
 target_compile_definitions(VoxelGame PRIVATE GLM_FORCE_RADIANS GLM_FORCE_RIGHT_HANDED GLM_FORCE_DEPTH_ZERO_TO_ONE)
 target_enable_extended_warnings(VoxelGame)
 target_copy_webgpu_binaries(VoxelGame)
 target_register_assets(VoxelGame
     "assets/shaders/shaders.wgsl"
 )
+
+# Link platform specific libraries
+if (NOT EMSCRIPTEN)
+    target_link_libraries(VoxelGame PRIVATE glfw)
+endif()
+
+# Set up platform specific properties
+if (EMSCRIPTEN)
+    target_link_options(VoxelGame PRIVATE
+        -sASYNCIFY
+        -sALLOW_MEMORY_GROWTH
+        -sUSE_WEBGPU
+        -sUSE_GLFW=3
+        --preload-file "${CMAKE_CURRENT_SOURCE_DIR}/assets/@assets/" # preload asset file directory in virtual file system
+    )
+
+    set_target_properties(VoxelGame PROPERTIES
+        SUFFIX .html
+    )
+endif()

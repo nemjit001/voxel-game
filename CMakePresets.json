@@ -42,6 +42,21 @@
         "lhs": "${hostSystemName}",
         "rhs": "Windows"
       }
+    },
+    {
+      "name": "emscripten-x64",
+      "inherits": "base",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "toolset": "Emscripten",
+      "toolchainFile": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "intelliSenseMode": "windows-clang-x64"
+        }
+      }
     }
   ],
   "buildPresets": [
@@ -63,6 +78,16 @@
     {
       "name": "vs22-release-x64",
       "configurePreset": "vs22-x64",
+      "configuration": "Release"
+    },
+    {
+      "name": "emscripten-debug-x64",
+      "configurePreset": "emscripten-x64",
+      "configuration": "Debug"
+    },
+    {
+      "name": "emscripten-release-x64",
+      "configurePreset": "emscripten-x64",
       "configuration": "Release"
     }
   ]

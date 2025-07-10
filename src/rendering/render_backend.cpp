@@ -5,6 +5,12 @@
 #include <glfw3webgpu.h>
 #include <spdlog/spdlog.h>
 
+#include "macros.hpp"
+
+#if		GAME_PLATFORM_EMSCRIPTEN
+	#include <emscripten/emscripten.h>
+#endif  // GAME_PLATFORM_EMSCRIPTEN
+
 namespace gfx
 {
 	static void wgpuErrorCallback(WGPUErrorType type, char const* pMessage, void* pUserData)
@@ -59,9 +65,15 @@ namespace gfx
 			throw std::runtime_error("WGPU adapter or device request failed");
 		}
 
-		WGPUAdapterProperties adapterProperties{};
-		wgpuAdapterGetProperties(m_adapter, &adapterProperties);
-		SPDLOG_INFO("Using hardware adapter {} ({})", adapterProperties.name, adapterProperties.deviceID);
+#if		WEBGPU_BACKEND_EMSCRIPTEN
+		WGPUAdapterInfo adapterInfo{};
+		wgpuAdapterGetInfo(m_adapter, &adapterInfo);
+		SPDLOG_INFO("Using hardware adapter {} ({})", adapterInfo.device, adapterInfo.deviceID);
+#else
+		WGPUAdapterProperties adapterInfo{};
+		wgpuAdapterGetProperties(m_adapter, &adapterInfo);
+		SPDLOG_INFO("Using hardware adapter {} ({})", adapterInfo.name, adapterInfo.deviceID);
+#endif	// WEBGPU_BACKEND_EMSCRIPTEN
 
 		// Hook up error callbacks
 		wgpuDeviceSetUncapturedErrorCallback(m_device, wgpuErrorCallback, nullptr);
@@ -148,7 +160,9 @@ namespace gfx
 
 	void RenderBackend::present(FrameState& state)
 	{
+#if     !WEBGPU_BACKEND_EMSCRIPTEN
 		wgpuSurfacePresent(m_surface);
+#endif	// !WEBGPU_BACKEND_EMSCRIPTEN
 
 		// Clean up the frame state :)
 		wgpuTextureViewRelease(state.swapTextureView);
@@ -189,19 +203,26 @@ namespace gfx
 		} ud;
 
 		auto const callback = [](WGPURequestAdapterStatus status, WGPUAdapter adapter, char const* pMessage, void* pUserData)
-			{
-				UserData& ud = *static_cast<UserData*>(pUserData);
-				if (status == WGPURequestAdapterStatus_Success) {
-					ud.adapter = adapter;
-				}
-				else {
-					SPDLOG_ERROR("WGPU adapter request failed: {}", pMessage);
-				}
+		{
+			UserData& ud = *static_cast<UserData*>(pUserData);
+			if (status == WGPURequestAdapterStatus_Success) {
+				ud.adapter = adapter;
+			}
+			else {
+				SPDLOG_ERROR("WGPU adapter request failed: {}", pMessage);
+			}
 
-				ud.done = true;
-			};
+			ud.done = true;
+		};
 
 		wgpuInstanceRequestAdapter(instance, pOptions, callback, &ud);
+#if		GAME_PLATFORM_EMSCRIPTEN
+		// Wait for async request to complete
+		while (!ud.done) {
+			emscripten_sleep(10);
+		}
+#endif  // GAME_PLATFORM_EMSCRIPTEN
+
 		return ud.adapter;
 	}
 
@@ -215,19 +236,26 @@ namespace gfx
 		} ud;
 
 		auto const callback = [](WGPURequestDeviceStatus status, WGPUDevice device, char const* pMessage, void* pUserData)
-			{
-				UserData& ud = *static_cast<UserData*>(pUserData);
-				if (status == WGPURequestDeviceStatus_Success) {
-					ud.device = device;
-				}
-				else {
-					SPDLOG_ERROR("WGPU device request failed: {}", pMessage);
-				}
+		{
+			UserData& ud = *static_cast<UserData*>(pUserData);
+			if (status == WGPURequestDeviceStatus_Success) {
+				ud.device = device;
+			}
+			else {
+				SPDLOG_ERROR("WGPU device request failed: {}", pMessage);
+			}
 
-				ud.done = true;
-			};
+			ud.done = true;
+		};
 
 		wgpuAdapterRequestDevice(adapter, pDesc, callback, &ud);
+#if		GAME_PLATFORM_EMSCRIPTEN
+		// Wait for async request to complete
+		while (!ud.done) {
+			emscripten_sleep(10);
+		}
+#endif  // GAME_PLATFORM_EMSCRIPTEN
+
 		return ud.device;
 	}
 
