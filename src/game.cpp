@@ -5,6 +5,7 @@
 
 #include "macros.hpp"
 #include "core/files.hpp"
+#include "assets/mesh_loader.hpp"
 #include "components/camera.hpp"
 #include "components/render_component.hpp"
 #include "components/transform.hpp"
@@ -88,7 +89,7 @@ Game::Game()
         m_registry->emplace<Camera>(camera, PerspectiveCamera{ 60.0F, 0.1F, 1000.0F });
         m_registry->emplace<Transform>(camera, Transform{ { 0.0F, 0.0F, -2.0F } });
 
-        auto suzanneMesh = std::make_shared<gfx::Mesh>(); // TODO(nemjit001): Load mesh from assets folder using resource manager (meshes/textures/materials?)
+        auto suzanneMesh = assets::MeshLoader().load(core::fs::getFullAssetPath("assets/suzanne.glb"));
         auto suzanneMaterial = std::make_shared<gfx::Material>();
 
         auto suzanne = m_registry->create();
