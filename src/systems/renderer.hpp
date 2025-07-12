@@ -18,8 +18,9 @@ struct CameraUniform
 /// @brief Uniform material data.
 struct MaterialUniform
 {
-    uint32_t hasAlbedoMap;
-    uint32_t hasNormalMap;
+    glm::vec3   albedoColor; float _pad0;
+    uint32_t    hasAlbedoMap;
+    uint32_t    hasNormalMap;
 };
 
 /// @brief Uniform object transform data.

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <glm/glm.hpp>
 
 #include "texture.hpp"
 
@@ -9,7 +10,8 @@ namespace gfx
 	class Material
 	{
 	public:
-		std::shared_ptr<Texture> albedoTexture = {};
-		std::shared_ptr<Texture> normalTexture = {};
+		glm::vec3					albedoColor		= { 0.5F, 0.5F, 0.5F };
+		std::shared_ptr<Texture>	albedoTexture	= {};
+		std::shared_ptr<Texture>	normalTexture	= {};
 	};
 } // namespace gfx

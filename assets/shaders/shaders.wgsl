@@ -29,6 +29,7 @@ struct Camera
 
 struct Material
 {
+    albedoColor: vec3f,
     hasAlbedoMap: u32,
     hasNormalMap: u32,
 }
@@ -82,7 +83,7 @@ fn FSForwardShading(input: VertexOutput) -> FragmentOutput
     let TBN = mat3x3f(input.tangent, input.bitangent, input.normal);
 
     // Get albedo color
-    var albedo = vec4f(0, 0, 0, 1);
+    var albedo = vec4f(material.albedoColor, 1);
     if (material.hasAlbedoMap != 0)
     {
         albedo = textureSample(albedoMap, linearSampler, input.texcoord);
