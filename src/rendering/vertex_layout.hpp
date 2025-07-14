@@ -1,13 +1,15 @@
 #pragma once
 
+#include <glm/glm.hpp>
+
 namespace gfx
 {
 	/// @brief Simple layout for static vertices.
 	struct Vertex
 	{
-		float position[3];
-		float normal[3];
-		float tangent[3];
-		float texcoord[2];
+		glm::vec3 position;
+		glm::vec3 normal;
+		glm::vec3 tangent;
+		glm::vec2 texcoord;
 	};
 } // namespace gfx

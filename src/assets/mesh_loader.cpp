@@ -31,7 +31,8 @@ namespace assets
 		std::string warning{};
 		std::string error{};
 		tinygltf::Model model{};
-		if (!tinygltf::TinyGLTF().LoadBinaryFromFile(&model, &error, &warning, path)) {
+		tinygltf::TinyGLTF loader{};
+		if (!loader.LoadBinaryFromFile(&model, &error, &warning, path)) {
 			if (!warning.empty()) {
 				SPDLOG_WARN("{}", warning);
 			}
@@ -48,8 +49,11 @@ namespace assets
 		}
 
 		// Parse file contents into single mesh
+		std::vector<gfx::Vertex> vertices{};
+		std::vector<gfx::IndexType> indices{};
+
 		for (auto const& mesh : model.meshes) {
-			SPDLOG_INFO("Found mesh: {}", mesh.name);
+			SPDLOG_TRACE("Found mesh: {}", mesh.name);
 
 			for (auto const& primitive : mesh.primitives)
 			{
@@ -59,26 +63,24 @@ namespace assets
 				}
 
 				// Load index data
-				std::vector<gfx::IndexType> indices{};
-				{
-					auto const& indicesAccessor = model.accessors[primitive.indices];
-					auto const& indicesView = model.bufferViews[indicesAccessor.bufferView];
-					auto const& indicesBuffer = model.buffers[indicesView.buffer];
-					if (indicesAccessor.type == TINYGLTF_TYPE_SCALAR && indicesAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
-						std::vector<uint16_t> contents = readBufferContents<uint16_t>(indicesAccessor, indicesView, indicesBuffer);
-						for (auto const& c : contents) {
-							indices.push_back(static_cast<gfx::IndexType>(c));
-						}
+				std::vector<gfx::IndexType> subMeshIndices{};
+				auto const& indicesAccessor = model.accessors[primitive.indices];
+				auto const& indicesView = model.bufferViews[indicesAccessor.bufferView];
+				auto const& indicesBuffer = model.buffers[indicesView.buffer];
+				if (indicesAccessor.type == TINYGLTF_TYPE_SCALAR && indicesAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
+					std::vector<uint16_t> contents = readBufferContents<uint16_t>(indicesAccessor, indicesView, indicesBuffer);
+					for (auto const& c : contents) {
+						subMeshIndices.push_back(static_cast<gfx::IndexType>(c));
 					}
-					else if (indicesAccessor.type == TINYGLTF_TYPE_SCALAR && indicesAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
-						std::vector<uint32_t> contents = readBufferContents<uint32_t>(indicesAccessor, indicesView, indicesBuffer);
-						for (auto const& c : contents) {
-							indices.push_back(static_cast<gfx::IndexType>(c));
-						}
+				}
+				else if (indicesAccessor.type == TINYGLTF_TYPE_SCALAR && indicesAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
+					std::vector<uint32_t> contents = readBufferContents<uint32_t>(indicesAccessor, indicesView, indicesBuffer);
+					for (auto const& c : contents) {
+						subMeshIndices.push_back(static_cast<gfx::IndexType>(c));
 					}
-					else {
-						throw std::runtime_error("Unsupported index type encountered in GLTF file");
-					}
+				}
+				else {
+					throw std::runtime_error("Unsupported index type encountered in GLTF file");
 				}
 
 				// Load vertex attributes
@@ -88,58 +90,79 @@ namespace assets
 				std::vector<glm::vec2> texcoords{};
 				for (auto const& attr : primitive.attributes)
 				{
-					SPDLOG_INFO("Attribute {}:{}", attr.first, attr.second);
+					// Fetch attribute accessor/view/buffer etc.
+					SPDLOG_TRACE("Attribute {}:{}", attr.first, attr.second);
 					auto const& accessor = model.accessors[attr.second];
 					auto const& view = model.bufferViews[accessor.bufferView];
 					auto const& buffer = model.buffers[view.buffer];
 
-					// Yucky if/else, pls fix w/ automatic type detection or loading into vectors
-					if (attr.first == "POSITION")
+					/// Read vec3 data from source
+					auto const readVec3Data = [&](std::vector<glm::vec3>& out)
 					{
-						if (accessor.type == TINYGLTF_TYPE_VEC3 && accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT) {
-							positions = readBufferContents<glm::vec3>(accessor, view, buffer);
+						if (accessor.type == TINYGLTF_TYPE_VEC3 && accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT)
+						{
+							out = readBufferContents<glm::vec3>(accessor, view, buffer);
 						}
-					}
-					else if (attr.first == "NORMAL")
-					{
-						if (accessor.type == TINYGLTF_TYPE_VEC3 && accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT) {
-							normals = readBufferContents<glm::vec3>(accessor, view, buffer);
-						}
-						else if (accessor.type == TINYGLTF_TYPE_VEC4 && accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT) {
-							std::vector<glm::vec4> contents = readBufferContents<glm::vec4>(accessor, view, buffer);
+						else if (accessor.type == TINYGLTF_TYPE_VEC4 && accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT)
+						{
+							std::vector<glm::vec4> const contents = readBufferContents<glm::vec4>(accessor, view, buffer);
+
 							for (auto const& c : contents) {
-								normals.push_back(glm::vec3(c));
+								out.push_back(glm::vec3(c) / c.w); // Works for tangent handedness & heterogenous coord convert to vec3 :)
 							}
 						}
-					}
-					else if (attr.first == "TANGENT")
+						else
+						{
+							throw std::runtime_error("Unsupported vec3-like data type encountered in GLTF file");
+						}
+					};
+
+					// Read vec2 data from source
+					auto const readVec2Data = [&](std::vector<glm::vec2>& out)
 					{
-						if (accessor.type == TINYGLTF_TYPE_VEC3 && accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT) {
-							tangents = readBufferContents<glm::vec3>(accessor, view, buffer);
+						if (accessor.type == TINYGLTF_TYPE_VEC2 && accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT)
+						{
+							out = readBufferContents<glm::vec2>(accessor, view, buffer);
 						}
-						else if (accessor.type == TINYGLTF_TYPE_VEC4 && accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT) {
-							std::vector<glm::vec4> contents = readBufferContents<glm::vec4>(accessor, view, buffer);
-							for (auto const& c : contents) {
-								tangents.push_back(glm::vec3(c));
-							}
+						else
+						{
+							throw std::runtime_error("Unsupported vec2-like data type encountered in GLTF file");
 						}
+					};
+
+					// Actually load data using util functions
+					if (attr.first == "POSITION") {
+						readVec3Data(positions);
 					}
-					else if (attr.first == "TEXCOORD_0")
-					{
-						if (accessor.type == TINYGLTF_TYPE_VEC2 && accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT) {
-							texcoords = readBufferContents<glm::vec2>(accessor, view, buffer);
-						}
+					else if (attr.first == "NORMAL") {
+						readVec3Data(normals);
+					}
+					else if (attr.first == "TANGENT") {
+						readVec3Data(tangents);
+					}
+					else if (attr.first == "TEXCOORD_0") { // Only support for 1 texture channel (why should we need more?)
+						readVec2Data(texcoords);
 					}
 				}
 
+				// Tightly pack mesh data into mesh buffers
 				assert(!positions.empty() && !normals.empty() && !tangents.empty() && !texcoords.empty());
+				assert(positions.size() == normals.size() && positions.size() == tangents.size() && tangents.size() == texcoords.size());
 
-				// TODO(nemjit001): load index/vertex data into shared mesh buffers
+				size_t const vertexCount = positions.size();
+				for (size_t i = 0; i < vertexCount; i++) {
+					vertices.push_back(gfx::Vertex{ positions[i], normals[i], tangents[i], texcoords[i] });
+				}
+
+				uint32_t const indexOffset = static_cast<uint32_t>(indices.size());
+				for (auto const& idx : subMeshIndices) {
+					indices.push_back(indexOffset + idx);
+				}
 			}
 		}
 
 		// Done!
 		SPDLOG_INFO("Loaded mesh file {}", path);
-		return std::make_shared<gfx::Mesh>();
+		return std::make_shared<gfx::Mesh>(vertices, indices);
 	}
 } // namespace assets
