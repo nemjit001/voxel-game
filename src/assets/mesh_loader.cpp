@@ -29,12 +29,35 @@ namespace assets
 	{
 		SPDLOG_INFO("Loading mesh file {}", path);
 
-		// Load model file using tinygltf, assuming glb file
+		std::string const filetype = path.substr(path.find_last_of("."));
+		bool binaryfile = false;
+		if (filetype == ".glb") {
+			binaryfile = true;
+		}
+		else if (filetype == ".gltf") {
+			binaryfile = false;
+		}
+		else
+		{
+			SPDLOG_ERROR("Unsupported file type passed to load function, can only be GLTF2.0 files (.glb/.gltf)");
+			return {};
+		}
+
+		// Load model file using tinygltf based on file type
 		std::string warning{};
 		std::string error{};
 		tinygltf::Model model{};
 		tinygltf::TinyGLTF loader{};
-		if (!loader.LoadBinaryFromFile(&model, &error, &warning, path)) {
+		bool loadOK = false;
+		if (binaryfile) {
+			loadOK = loader.LoadBinaryFromFile(&model, &error, &warning, path);
+		}
+		else {
+			loadOK = loader.LoadASCIIFromFile(&model, &error, &warning, path);
+		}
+
+		// Check load return code
+		if (!loadOK) {
 			if (!warning.empty()) {
 				SPDLOG_WARN("{}", warning);
 			}
