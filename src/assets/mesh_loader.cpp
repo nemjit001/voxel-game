@@ -6,6 +6,8 @@
 #include <spdlog/spdlog.h>
 #include <tiny_gltf.h>
 
+#include "macros.hpp"
+
 namespace assets
 {
 	template<typename AccessorType>
@@ -161,8 +163,18 @@ namespace assets
 			}
 		}
 
+#if		GAME_BUILD_TYPE_DEBUG
+		// Do an extra sanity check for index ranges and vertex counts
+		for (auto const& idx : indices) {
+			if (idx >= vertices.size()) {
+				SPDLOG_ERROR("Mesh indices out of range for vertex data!");
+				return {};
+			}
+		}
+#endif	// GAME_BUILD_TYPE_DEBUG
+
 		// Done!
-		SPDLOG_INFO("Loaded mesh file {}", path);
+		SPDLOG_INFO("Loaded mesh!");
 		return std::make_shared<gfx::Mesh>(vertices, indices);
 	}
 } // namespace assets
