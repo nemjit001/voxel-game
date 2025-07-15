@@ -1,5 +1,8 @@
 #include "renderer.hpp"
 
+#include <set>
+#include <unordered_map>
+#include <vector>
 #include <spdlog/spdlog.h>
 
 #include "core/files.hpp"
@@ -249,7 +252,7 @@ Renderer::~Renderer()
     wgpuTextureRelease(m_depthStencilTarget);
 }
 
-void Renderer::render(entt::registry& registry)
+void Renderer::render(entt::registry const& registry)
 {
     // Acquire new frame
     gfx::FrameState frame{};
@@ -261,13 +264,148 @@ void Renderer::render(entt::registry& registry)
         return;
     }
 
+    // Prepare frame state
+    prepare(registry);
+
+    // Execute frame commands
+    execute(frame);
+}
+
+void Renderer::onResize(uint32_t width, uint32_t height)
+{
+    m_renderbackend->resizeSwapBuffers({ width, height });
+
+    // Recreate depth-stencil target
+    {
+        wgpuTextureViewRelease(m_depthStencilTargetView);
+        wgpuTextureRelease(m_depthStencilTarget);
+
+        gfx::FramebufferSize const swapFramebufferSize = m_renderbackend->getFramebufferSize();
+        WGPUTextureDescriptor depthStencilTargetDesc{};
+        depthStencilTargetDesc.nextInChain = nullptr;
+        depthStencilTargetDesc.label = "Depth Stencil Target";
+        depthStencilTargetDesc.usage = WGPUTextureUsage_RenderAttachment;
+        depthStencilTargetDesc.dimension = WGPUTextureDimension_2D;
+        depthStencilTargetDesc.size.width = swapFramebufferSize.width;
+        depthStencilTargetDesc.size.height = swapFramebufferSize.height;
+        depthStencilTargetDesc.size.depthOrArrayLayers = 1;
+        depthStencilTargetDesc.format = WGPUTextureFormat_Depth24PlusStencil8;
+        depthStencilTargetDesc.mipLevelCount = 1;
+        depthStencilTargetDesc.sampleCount = 1;
+        depthStencilTargetDesc.viewFormatCount = 0;
+        depthStencilTargetDesc.viewFormats = nullptr;
+
+        m_depthStencilTarget = wgpuDeviceCreateTexture(m_renderbackend->getDevice(), &depthStencilTargetDesc);
+        m_depthStencilTargetView = wgpuTextureCreateView(m_depthStencilTarget, nullptr /* default view */);
+    }
+}
+
+void Renderer::prepare(entt::registry const& registry)
+{
     // Gather render data from ECS registry
-    [[maybe_unused]] auto cameras = registry.view<Camera, Transform>();
-    [[maybe_unused]] auto objects = registry.view<RenderComponent, Transform>();
+    auto const cameras = registry.view<Camera, Transform>();
+    auto const objects = registry.view<RenderComponent, Transform>();
 
-    // Prepare frame uniforms for render passes
-    //
+    // Gather updated host data
+    // NOTE(nemjit001): Sets handle deduplication automatically, unordered sets are faster than std::set
+    std::unordered_set<std::shared_ptr<gfx::Mesh>> dirtyMeshes{};
+    std::unordered_set<std::shared_ptr<gfx::Texture>> dirtyTextures{};
+    for (auto const& [ _entity, object, _transform ] : objects.each())
+    {
+        // Skip null data
+        if (!object.mesh || !object.material)
+        {
+            SPDLOG_TRACE("Entity {} has null components in render data", _entity);
+            continue;
+        }
 
+        // Track dirty meshes
+        if (object.mesh && object.mesh->isDirty()) {
+            dirtyMeshes.emplace(object.mesh);
+        }
+
+        // Track dirty textures
+        if (object.material->albedoTexture && object.material->albedoTexture->isDirty()) {
+            dirtyTextures.emplace(object.material->albedoTexture);
+        }
+
+        if (object.material->normalTexture && object.material->normalTexture->isDirty()) {
+            dirtyTextures.emplace(object.material->normalTexture);
+        }
+    }
+
+    // Gather camera uniform data
+    std::vector<CameraUniform> cameraUniformData{};
+    for (auto const& [ _entity, camera, transform ] : cameras.each())
+    {
+        // Fetch framebuffer aspect ratio
+        gfx::FramebufferSize const swapFramebufferSize = m_renderbackend->getFramebufferSize();
+        float const swapAspectRatio = static_cast<float>(swapFramebufferSize.width) / static_cast<float>(swapFramebufferSize.height);
+
+        // Calculate view & projection matrices
+        glm::mat4 const view = transform.matrix();
+        glm::mat4 const project = camera.matrix(swapAspectRatio);
+        glm::mat4 const viewproject = project * view;
+
+        CameraUniform const CameraUniform{
+            view,
+            project,
+            viewproject,
+        };
+
+        cameraUniformData.push_back(CameraUniform);
+    }
+
+    // Gather material and object uniform data
+    std::vector<MaterialUniform> materialUniformData{};
+    std::vector<ObjectTranformUniform> objectTransformUniformData{};
+    std::unordered_map<std::shared_ptr<gfx::Material>, size_t> materialUniformEntries{};
+    for (auto const& [_entity, object, transform] : objects.each())
+    {
+        // Skip null render data
+        if (!object.mesh || !object.material) {
+            continue;
+        }
+
+        // Set up material uniform data
+        MaterialUniform const materialUniform{
+            object.material->albedoColor, 0.0F /* padding */,
+            (object.material->albedoTexture != nullptr),
+            (object.material->normalTexture != nullptr),
+        };
+
+        // Calculate object transform matrices
+        glm::mat4 const model = transform.matrix();
+        glm::mat4 const normal = glm::mat4(glm::inverse(glm::transpose(glm::mat3(model))));
+        
+        ObjectTranformUniform const objectTransformUniform{
+            model,
+            normal,
+        };
+
+        // Push entries in uniform data arrays
+        if (materialUniformEntries.find(object.material) == materialUniformEntries.end()) // Only push if not already added to array
+        {
+            materialUniformEntries[object.material] = materialUniformData.size(); // Track offset into material uniform array
+            materialUniformData.push_back(materialUniform);
+        }
+
+        objectTransformUniformData.push_back(objectTransformUniform); // Always pushed :)
+    }
+
+    // TODO(nemjit001):
+    // - [X] Gather dirty mesh/texture/anim data for this frame
+    // - [ ] Upload dirty frame data
+    // - [X] Generate camera data for each camera in scene
+    // - [X] Generate material data for each material in scene
+    // - [X] Generate object transform data for all objects in scene (track previous for motion vectors?)
+    // - [ ] Gather batched draw calls for this frame
+    
+    // TODO(nemjit001): Store draw call gather results (camera:material:mesh) in draw list
+}
+
+void Renderer::execute(gfx::FrameState frame)
+{
     // Start command recording for frame
     WGPUCommandEncoderDescriptor encoderDesc{};
     encoderDesc.nextInChain = nullptr;
@@ -314,7 +452,7 @@ void Renderer::render(entt::registry& registry)
     wgpuRenderPassEncoderSetScissorRect(renderPass, 0, 0, swapFramebufferSize.width, swapFramebufferSize.height);
     wgpuRenderPassEncoderSetPipeline(renderPass, m_pipeline);
 
-    // Finish forward render pass
+    // Finish opaque object pass
     wgpuRenderPassEncoderEnd(renderPass);
 
     // Finish command recording
@@ -330,33 +468,4 @@ void Renderer::render(entt::registry& registry)
     wgpuCommandBufferRelease(frameCommands);
     wgpuRenderPassEncoderRelease(renderPass);
     wgpuCommandEncoderRelease(frameCommandEncoder);
-}
-
-void Renderer::onResize(uint32_t width, uint32_t height)
-{
-    m_renderbackend->resizeSwapBuffers({ width, height });
-
-    // Recreate depth-stencil target
-    {
-        wgpuTextureViewRelease(m_depthStencilTargetView);
-        wgpuTextureRelease(m_depthStencilTarget);
-
-        gfx::FramebufferSize const swapFramebufferSize = m_renderbackend->getFramebufferSize();
-        WGPUTextureDescriptor depthStencilTargetDesc{};
-        depthStencilTargetDesc.nextInChain = nullptr;
-        depthStencilTargetDesc.label = "Depth Stencil Target";
-        depthStencilTargetDesc.usage = WGPUTextureUsage_RenderAttachment;
-        depthStencilTargetDesc.dimension = WGPUTextureDimension_2D;
-        depthStencilTargetDesc.size.width = swapFramebufferSize.width;
-        depthStencilTargetDesc.size.height = swapFramebufferSize.height;
-        depthStencilTargetDesc.size.depthOrArrayLayers = 1;
-        depthStencilTargetDesc.format = WGPUTextureFormat_Depth24PlusStencil8;
-        depthStencilTargetDesc.mipLevelCount = 1;
-        depthStencilTargetDesc.sampleCount = 1;
-        depthStencilTargetDesc.viewFormatCount = 0;
-        depthStencilTargetDesc.viewFormats = nullptr;
-
-        m_depthStencilTarget = wgpuDeviceCreateTexture(m_renderbackend->getDevice(), &depthStencilTargetDesc);
-        m_depthStencilTargetView = wgpuTextureCreateView(m_depthStencilTarget, nullptr /* default view */);
-    }
 }

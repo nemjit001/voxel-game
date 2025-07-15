@@ -44,12 +44,21 @@ public:
 
     /// @brief Render the next game frame.
     /// @param registry ECS registry to use for rendering.
-    void render(entt::registry& registry);
+    void render(entt::registry const& registry);
 
     /// @brief Handle a window resize event in the renderer.
     /// @param width 
     /// @param height 
     void onResize(uint32_t width, uint32_t height);
+
+private:
+    /// @brief Prepare the game frame state.
+    /// @param registry 
+    void prepare(entt::registry const& registry);
+
+    /// @brief Execute the game frame render state.
+    /// @param registry 
+    void execute(gfx::FrameState frame);
 
 private:
     std::shared_ptr<gfx::RenderBackend> m_renderbackend;

@@ -116,7 +116,7 @@ void Game::update()
 {
     // Start frame & tick frame timer
     m_frameTimer.tick();
-    SPDLOG_TRACE("Frame time: {8.2f} ms", m_frameTimer.delta());
+    SPDLOG_TRACE("Frame time: {:8.2f} ms", m_frameTimer.delta());
 
     // Handle platform events
     glfwPollEvents();
