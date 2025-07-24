@@ -52,7 +52,7 @@ namespace gfx
 		/// @return 
 		TextureExtent extent() const { return m_extent; }
 
-		/// @brief Get the number of color channels in this texture, in range [0, 4].
+		/// @brief Get the number of color channels in this texture, in range [1, 4].
 		/// @return 
 		uint8_t components() const { return m_components; }
 

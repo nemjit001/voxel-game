@@ -7,6 +7,10 @@
 
 #include "macros.hpp"
 
+#if		WEBGPU_BACKEND_WGPU
+	#include <webgpu/wgpu.h>
+#endif	// WEBGPU_BACKEND_WGPU
+
 #if		GAME_PLATFORM_EMSCRIPTEN
 	#include <emscripten/emscripten.h>
 #endif  // GAME_PLATFORM_EMSCRIPTEN
@@ -172,6 +176,7 @@ namespace gfx
 	void RenderBackend::submit(size_t commandCount, WGPUCommandBuffer const* pCommands)
 	{
 		wgpuQueueSubmit(m_queue, commandCount, pCommands);
+		pollDeviceState();
 	}
 
 	void RenderBackend::resizeSwapBuffers(FramebufferSize const& size)
@@ -301,5 +306,14 @@ namespace gfx
 		info.currentPresentMode = WGPUPresentMode_Fifo;
 
 		return info;
+	}
+
+	void RenderBackend::pollDeviceState()
+	{
+#if		WEBGPU_BACKEND_WGPU
+		wgpuDevicePoll(m_device, false, nullptr);
+#elif	WEBGPU_BACKEND_DAWN
+		wgpuDeviceTick(m_device);
+#endif
 	}
 } // namespace gfx

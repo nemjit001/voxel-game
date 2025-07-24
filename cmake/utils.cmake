@@ -13,6 +13,7 @@ function(target_register_assets TARGET_NAME)
 		get_filename_component(INPUT_FILE_PATH ${ASSET_FILE} ABSOLUTE)
 		set(OUTPUT_FILE_PATH "$<CONFIG>/${ASSET_FILE}")
 
+		# Copy file to output directory
 		add_custom_command(OUTPUT ${OUTPUT_FILE_PATH}
 			COMMAND ${CMAKE_COMMAND} -E copy ${INPUT_FILE_PATH} ${OUTPUT_FILE_PATH}
 			COMMENT "[Assets] Copying ${ASSET_FILE} to binary dir"

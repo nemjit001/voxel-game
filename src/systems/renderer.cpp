@@ -300,108 +300,169 @@ void Renderer::onResize(uint32_t width, uint32_t height)
     }
 }
 
-void Renderer::prepare(entt::registry const& registry)
+void Renderer::uploadSceneData(entt::registry const& registry)
 {
-    // Gather render data from ECS registry
-    auto const cameras = registry.view<Camera, Transform>();
     auto const objects = registry.view<RenderComponent, Transform>();
 
     // Gather updated host data
     // NOTE(nemjit001): Sets handle deduplication automatically, unordered sets are faster than std::set
     std::unordered_set<std::shared_ptr<gfx::Mesh>> dirtyMeshes{};
     std::unordered_set<std::shared_ptr<gfx::Texture>> dirtyTextures{};
-    for (auto const& [ _entity, object, _transform ] : objects.each())
     {
-        // Skip null data
-        if (!object.mesh || !object.material)
+        for (auto const& [_entity, object, _transform] : objects.each())
         {
-            SPDLOG_TRACE("Entity {} has null components in render data", _entity);
-            continue;
-        }
+            // Skip null data
+            if (!object.mesh || !object.material)
+            {
+                SPDLOG_WARN("Entity {} has null components in render data", static_cast<size_t>(_entity));
+                continue;
+            }
 
-        // Track dirty meshes
-        if (object.mesh && object.mesh->isDirty()) {
-            dirtyMeshes.emplace(object.mesh);
-        }
+            // Track dirty meshes
+            if (object.mesh && object.mesh->isDirty()) {
+                dirtyMeshes.emplace(object.mesh);
+            }
 
-        // Track dirty textures
-        if (object.material->albedoTexture && object.material->albedoTexture->isDirty()) {
-            dirtyTextures.emplace(object.material->albedoTexture);
-        }
+            // Track dirty textures
+            if (object.material->albedoTexture && object.material->albedoTexture->isDirty()) {
+                dirtyTextures.emplace(object.material->albedoTexture);
+            }
 
-        if (object.material->normalTexture && object.material->normalTexture->isDirty()) {
-            dirtyTextures.emplace(object.material->normalTexture);
+            if (object.material->normalTexture && object.material->normalTexture->isDirty()) {
+                dirtyTextures.emplace(object.material->normalTexture);
+            }
         }
     }
 
-    // Gather camera uniform data
-    std::vector<CameraUniform> cameraUniformData{};
-    for (auto const& [ _entity, camera, transform ] : cameras.each())
+    // Create and populate GPU objects with host-side data
     {
-        // Fetch framebuffer aspect ratio
-        gfx::FramebufferSize const swapFramebufferSize = m_renderbackend->getFramebufferSize();
-        float const swapAspectRatio = static_cast<float>(swapFramebufferSize.width) / static_cast<float>(swapFramebufferSize.height);
-
-        // Calculate view & projection matrices
-        glm::mat4 const view = transform.matrix();
-        glm::mat4 const project = camera.matrix(swapAspectRatio);
-        glm::mat4 const viewproject = project * view;
-
-        CameraUniform const CameraUniform{
-            view,
-            project,
-            viewproject,
-        };
-
-        cameraUniformData.push_back(CameraUniform);
-    }
-
-    // Gather material and object uniform data
-    std::vector<MaterialUniform> materialUniformData{};
-    std::vector<ObjectTranformUniform> objectTransformUniformData{};
-    std::unordered_map<std::shared_ptr<gfx::Material>, size_t> materialUniformEntries{};
-    for (auto const& [_entity, object, transform] : objects.each())
-    {
-        // Skip null render data
-        if (!object.mesh || !object.material) {
-            continue;
-        }
-
-        // Set up material uniform data
-        MaterialUniform const materialUniform{
-            object.material->albedoColor, 0.0F /* padding */,
-            (object.material->albedoTexture != nullptr),
-            (object.material->normalTexture != nullptr),
-        };
-
-        // Calculate object transform matrices
-        glm::mat4 const model = transform.matrix();
-        glm::mat4 const normal = glm::mat4(glm::inverse(glm::transpose(glm::mat3(model))));
-        
-        ObjectTranformUniform const objectTransformUniform{
-            model,
-            normal,
-        };
-
-        // Push entries in uniform data arrays
-        if (materialUniformEntries.find(object.material) == materialUniformEntries.end()) // Only push if not already added to array
+        for (auto& mesh : dirtyMeshes)
         {
-            materialUniformEntries[object.material] = materialUniformData.size(); // Track offset into material uniform array
-            materialUniformData.push_back(materialUniform);
+            // Create buffers
+            WGPUBufferDescriptor vertexBufferDesc{};
+            vertexBufferDesc.nextInChain = nullptr;
+            vertexBufferDesc.label = "Vertex Buffer (managed)";
+            vertexBufferDesc.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex;
+            vertexBufferDesc.size = mesh->vertexCount() * sizeof(gfx::Vertex);
+            vertexBufferDesc.mappedAtCreation = false;
+
+            WGPUBufferDescriptor indexBufferDesc{};
+            indexBufferDesc.nextInChain = nullptr;
+            indexBufferDesc.label = "Index Buffer (managed)";
+            indexBufferDesc.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index;
+            indexBufferDesc.size = mesh->indexCount() * sizeof(gfx::IndexType);
+            indexBufferDesc.mappedAtCreation = false;
+
+            WGPUBuffer vertexBuffer = wgpuDeviceCreateBuffer(m_renderbackend->getDevice(), &vertexBufferDesc);
+            WGPUBuffer indexBuffer = wgpuDeviceCreateBuffer(m_renderbackend->getDevice(), &indexBufferDesc);
+            SPDLOG_TRACE("Created mesh buffers (vertex bytes: {} | index bytes: {})", vertexBufferDesc.size, indexBufferDesc.size);
+
+            // Upload buffer data
+            std::vector<gfx::Vertex> vertices{};
+            std::vector<gfx::IndexType> indices{};
+            mesh->getBuffers(vertices, indices);
+            wgpuQueueWriteBuffer(m_renderbackend->getQueue(), vertexBuffer, 0, vertices.data(), wgpuBufferGetSize(vertexBuffer));
+            wgpuQueueWriteBuffer(m_renderbackend->getQueue(), indexBuffer, 0, indices.data(), wgpuBufferGetSize(indexBuffer));
+
+            // Update mesh
+            mesh->setVertexBuffer(vertexBuffer);
+            mesh->setIndexBuffer(indexBuffer);
+            mesh->clearDirtyFlag(); // done :)
         }
 
-        objectTransformUniformData.push_back(objectTransformUniform); // Always pushed :)
-    }
+        for (auto& texture : dirtyTextures)
+        {
+            // Get texture data
+            gfx::TextureDimensions const dimensions = texture->dimensions();
+            gfx::TextureExtent const extent = texture->extent();
+            uint8_t const components = texture->components();
 
-    // TODO(nemjit001):
-    // - [X] Gather dirty mesh/texture/anim data for this frame
-    // - [ ] Upload dirty frame data
-    // - [X] Generate camera data for each camera in scene
-    // - [X] Generate material data for each material in scene
-    // - [X] Generate object transform data for all objects in scene (track previous for motion vectors?)
-    // - [ ] Gather batched draw calls for this frame
-    
-    // TODO(nemjit001): Store draw call gather results (camera:material:mesh) in draw list
+            // Parse dimensions
+            WGPUTextureDimension dim = WGPUTextureDimension_Force32;
+            switch (dimensions)
+            {
+            case gfx::TextureDimensions::Dim1D:
+                dim = WGPUTextureDimension_1D;
+                break;
+            case gfx::TextureDimensions::Dim2D:
+                dim = WGPUTextureDimension_2D;
+                break;
+            case gfx::TextureDimensions::Dim3D:
+                dim = WGPUTextureDimension_3D;
+                break;
+            default:
+                break;
+            }
+
+            // Guess a good format based on components
+            WGPUTextureFormat format = WGPUTextureFormat_Undefined;
+            switch (components)
+            {
+            case 1:
+                format = WGPUTextureFormat_R8Unorm;
+                break;
+            case 2:
+                format = WGPUTextureFormat_RG8Unorm;
+                break;
+            case 3:
+                format = WGPUTextureFormat_RGBA8Unorm; // Uses RGBA since RGB is not available in WebGPU
+                break;
+            case 4:
+                format = WGPUTextureFormat_RGBA8Unorm;
+                break;
+            default:
+                break;
+            }
+
+            // Create texture
+            WGPUTextureDescriptor textureDesc{};
+            textureDesc.nextInChain = nullptr;
+            textureDesc.label = "Image Texture (managed)";
+            textureDesc.usage = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding;
+            textureDesc.dimension = dim;
+            textureDesc.size.width = extent.width;
+            textureDesc.size.height = extent.height;
+            textureDesc.size.depthOrArrayLayers = extent.depthOrArrayLayers;
+            textureDesc.format = format;
+            textureDesc.mipLevelCount = 1; // TODO(nemjit001): implement mip levels on host side, then upload as bytes into texture
+            textureDesc.sampleCount = 1;
+            textureDesc.viewFormatCount = 0;
+            textureDesc.viewFormats = nullptr;
+
+            WGPUTexture gpuTexture = wgpuDeviceCreateTexture(m_renderbackend->getDevice(), &textureDesc);
+            SPDLOG_TRACE("Created texture handle (size: {}x{}x{})", textureDesc.size.width, textureDesc.size.height, textureDesc.size.depthOrArrayLayers);
+
+            // Upload texture data
+            WGPUImageCopyTexture destination{};
+            destination.nextInChain = nullptr;
+            destination.texture = gpuTexture;
+            destination.mipLevel = 0;
+            destination.origin = { 0, 0, 0 }; // Always 0, 0, 0 for now
+            destination.aspect = WGPUTextureAspect_All;
+
+            WGPUTextureDataLayout layout{};
+            layout.nextInChain = nullptr;
+            layout.offset = 0;
+            layout.bytesPerRow = components * extent.width;
+            layout.rowsPerImage = extent.height;
+
+            size_t const dataSize = extent.width * extent.height * extent.depthOrArrayLayers * components;
+            wgpuQueueWriteTexture(m_renderbackend->getQueue(), &destination, texture->data(), dataSize, &layout, &textureDesc.size);
+
+            // Update texture
+            texture->setTexture(gpuTexture);
+            texture->clearDirtyFlag(); // Done :)
+        }
+    }
+}
+
+void Renderer::prepare(entt::registry const& registry)
+{
+    // Gather render data from ECS registry
+    auto const cameras = registry.view<Camera, Transform>();
+    auto const objects = registry.view<RenderComponent, Transform>();
+
+    // TODO(nemjit001): Gather uniforms & upload
 }
 
 void Renderer::execute(gfx::FrameState frame)

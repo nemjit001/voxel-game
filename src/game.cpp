@@ -46,6 +46,11 @@ static void mousePosCallback(GLFWwindow* pWindow, double xpos, double ypos)
 
 Game::Game()
 {
+    // Set up default logger state
+#if     GAME_BUILD_TYPE_DEBUG
+    spdlog::set_level(spdlog::level::trace);
+#endif
+
     // Dump some basic info
     SPDLOG_INFO("Initial window size: {} x {}", DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT);
     SPDLOG_INFO("Program directory: {}", core::fs::getProgramDirectory());

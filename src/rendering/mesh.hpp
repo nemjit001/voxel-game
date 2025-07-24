@@ -47,7 +47,7 @@ namespace gfx
 
 		/// @brief Retrieve the number of vertices of this mesh.
 		/// @return 
-		size_t vertexCount() const { return m_indices.size(); }
+		size_t vertexCount() const { return m_vertices.size(); }
 
 		/// @brief Retrieve the number of indices of this mesh.
 		/// @return 

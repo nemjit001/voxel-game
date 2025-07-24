@@ -112,7 +112,7 @@ if (EMSCRIPTEN)
         -sALLOW_MEMORY_GROWTH
         -sUSE_WEBGPU
         -sUSE_GLFW=3
-        --preload-file "${CMAKE_CURRENT_SOURCE_DIR}/assets/@assets/" # preload asset file directory in virtual file system
+        --preload-file "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/assets/@assets/"
     )
 
     set_target_properties(VoxelGame PROPERTIES

@@ -54,6 +54,7 @@ namespace gfx
 		WGPUInstance		getInstance() const			{ return m_instance; }
 		WGPUSurface			getSurface() const			{ return m_surface; }
 		WGPUDevice			getDevice() const			{ return m_device; }
+		WGPUQueue			getQueue() const			{ return m_queue; }
 
 	private:
 		/// @brief Used to store some info on the currently configured surface.
@@ -84,6 +85,9 @@ namespace gfx
 		/// @param adapter 
 		/// @return 
 		SurfaceInfo getSurfaceInfo(WGPUSurface surface, WGPUAdapter adapter) const;
+
+		/// @brief Poll device to handle any work remaining on the queue.
+		void pollDeviceState();
 
 	private:
 		FramebufferSize	m_framebufferSize	= {};

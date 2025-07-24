@@ -52,6 +52,10 @@ public:
     void onResize(uint32_t width, uint32_t height);
 
 private:
+    /// @brief Upload GPU scene data that has changed this frame.
+    /// @param registry 
+    void uploadSceneData(entt::registry const& registry);
+
     /// @brief Prepare the game frame state.
     /// @param registry 
     void prepare(entt::registry const& registry);
