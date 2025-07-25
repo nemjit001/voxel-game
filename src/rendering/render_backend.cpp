@@ -63,6 +63,10 @@ namespace gfx
 		// Request a WebGPU device
 		WGPURequiredLimits deviceLimits{};
 		deviceLimits.limits = adapterLimits.limits; // Just use default limits for now :)
+#if		WEBGPU_BACKEND_EMSCRIPTEN
+		// Remove emscripten limits that are deprecated
+		deviceLimits.limits.maxInterStageShaderComponents = WGPU_LIMIT_U32_UNDEFINED;
+#endif
 
 		WGPUDeviceDescriptor deviceDesc{};
 		deviceDesc.nextInChain = nullptr;
@@ -74,9 +78,6 @@ namespace gfx
 		deviceDesc.defaultQueue.label = "WGPU queue";
 		deviceDesc.deviceLostCallback = nullptr;
 		deviceDesc.deviceLostUserdata = nullptr;
-#if		WEBGPU_BACKEND_EMSCRIPTEN
-		deviceDesc.requiredLimits = nullptr; // Emscripten complains that limits don't exist so we can't request them here :/
-#endif
 
 		m_device = requestDevice(m_adapter, &deviceDesc);
 		if (!m_adapter || !m_device) {
