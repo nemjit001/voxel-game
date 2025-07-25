@@ -13,6 +13,12 @@ namespace gfx
 		uint32_t height;
 	};
 
+	/// @brief Backend capabilities for the render backend.
+	struct BackendCapabilities
+	{
+		uint32_t minUniformBufferOffsetAlignment;
+	};
+
 	/// @brief The FrameState struct contains per-frame data for the render-backend.
 	struct FrameState
 	{
@@ -47,6 +53,10 @@ namespace gfx
 		/// @brief Resize the swap surface framebuffer size.
 		/// @param size 
 		void resizeSwapBuffers(FramebufferSize const& size);
+
+		/// @brief Retrieve the render backend capabilities for the currently active render backend.
+		/// @return 
+		BackendCapabilities getBackendCapabilities() const;
 
 		FramebufferSize		getFramebufferSize() const	{ return m_framebufferSize; }
 		bool				hasSRGBFramebuffer() const	{ return m_surfaceInfo.isSRGB; }

@@ -45,9 +45,13 @@ struct ObjectTransform
 
 // Material data bind group
 @group(1) @binding(0) var<uniform> material: Material;
-@group(1) @binding(1) var linearSampler: sampler;
-@group(1) @binding(2) var albedoMap: texture_2d<f32>;
-@group(1) @binding(3) var normalMap: texture_2d<f32>;
+
+// Texture data bind group
+// @group(2) @binding(0) var albedoSampler: sampler;
+// @group(2) @binding(1) var albedoMap: texture_2d<f32>;
+//
+// @group(2) @binding(2) var normalSampler: sampler;
+// @group(2) @binding(3) var normalMap: texture_2d<f32>;
 
 // Object data bind group
 @group(2) @binding(0) var<uniform> objectTransform: ObjectTransform;
@@ -86,22 +90,22 @@ fn FSForwardShading(input: VertexOutput) -> FragmentOutput
     var albedo = vec4f(material.albedoColor, 1);
     if (material.hasAlbedoMap != 0)
     {
-        albedo = textureSample(albedoMap, linearSampler, input.texcoord);
+        // albedo = textureSample(albedoMap, linearSampler, input.texcoord);
     }
 
     // Get shading normal
     var normal = vec3f(0, 0, 1);
     if (material.hasNormalMap != 0)
     {
-        normal = textureSample(normalMap, linearSampler, input.texcoord).xyz;
-        normal = 2.0 * normal - 1.0; // Remap normal to range [-1, 1]
+        // normal = textureSample(normalMap, linearSampler, input.texcoord).xyz;
+        // normal = 2.0 * normal - 1.0; // Remap normal to range [-1, 1]
     }
 
     // TODO(nemjit001): do some shading based on light positions in scene
     let shadingNormal = normalize(TBN * normal);
 
     var result = FragmentOutput();
-    result.color = albedo;
+    result.color = vec4f(0.5 + 0.5 * shadingNormal, 1.0);
 
     return result;
 }

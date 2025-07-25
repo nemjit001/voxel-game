@@ -92,14 +92,18 @@ Game::Game()
     {
         auto camera = m_registry->create();
         m_registry->emplace<Camera>(camera, PerspectiveCamera{ 60.0F, 0.1F, 1000.0F });
-        m_registry->emplace<Transform>(camera, Transform{ { 0.0F, 0.0F, -2.0F } });
+        m_registry->emplace<Transform>(camera, Transform{ { 0.0F, 0.0F, -5.0F } });
 
         auto suzanneMesh = assets::MeshLoader().load(core::fs::getFullAssetPath("assets/suzanne.glb"));
         auto suzanneMaterial = std::make_shared<gfx::Material>();
 
-        auto suzanne = m_registry->create();
-        m_registry->emplace<RenderComponent>(suzanne, RenderComponent{ suzanneMesh, suzanneMaterial });
-        m_registry->emplace<Transform>(suzanne);
+        auto suzanne1 = m_registry->create();
+        m_registry->emplace<RenderComponent>(suzanne1, RenderComponent{ suzanneMesh, suzanneMaterial });
+        m_registry->emplace<Transform>(suzanne1, Transform{ { 2.0F, 0.0F, 0.0F } });
+
+        auto suzanne2 = m_registry->create();
+        m_registry->emplace<RenderComponent>(suzanne2, RenderComponent{ suzanneMesh, suzanneMaterial });
+        m_registry->emplace<Transform>(suzanne2, Transform{ { -2.0F, 0.0F, 0.0F } });
     }
 
     // We are initialized!
@@ -121,7 +125,6 @@ void Game::update()
 {
     // Start frame & tick frame timer
     m_frameTimer.tick();
-    SPDLOG_TRACE("Frame time: {:8.2f} ms", m_frameTimer.delta());
 
     // Handle platform events
     glfwPollEvents();

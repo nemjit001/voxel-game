@@ -6,6 +6,7 @@
 #include <spdlog/spdlog.h>
 
 #include "core/files.hpp"
+#include "core/memory.hpp"
 #include "rendering/vertex_layout.hpp"
 #include "components/camera.hpp"
 #include "components/render_component.hpp"
@@ -45,7 +46,7 @@ Renderer::Renderer(std::shared_ptr<gfx::RenderBackend> renderbackend)
         sceneDataCameraBinding.visibility = WGPUShaderStage_Vertex;
         sceneDataCameraBinding.buffer.nextInChain = nullptr;
         sceneDataCameraBinding.buffer.type = WGPUBufferBindingType_Uniform;
-        sceneDataCameraBinding.buffer.hasDynamicOffset = false;
+        sceneDataCameraBinding.buffer.hasDynamicOffset = true;
         sceneDataCameraBinding.buffer.minBindingSize = 0;
 
         WGPUBindGroupLayoutEntry sceneDataBindGroupEntries[] = { sceneDataCameraBinding, };
@@ -64,35 +65,10 @@ Renderer::Renderer(std::shared_ptr<gfx::RenderBackend> renderbackend)
         materialDataMaterialBinding.visibility = WGPUShaderStage_Fragment;
         materialDataMaterialBinding.buffer.nextInChain = nullptr;
         materialDataMaterialBinding.buffer.type = WGPUBufferBindingType_Uniform;
-        materialDataMaterialBinding.buffer.hasDynamicOffset = false;
+        materialDataMaterialBinding.buffer.hasDynamicOffset = true;
         materialDataMaterialBinding.buffer.minBindingSize = 0;
 
-        WGPUBindGroupLayoutEntry materialDataLinearSamplerBinding{};
-        materialDataLinearSamplerBinding.nextInChain = nullptr;
-        materialDataLinearSamplerBinding.binding = 1;
-        materialDataLinearSamplerBinding.visibility = WGPUShaderStage_Fragment;
-        materialDataLinearSamplerBinding.sampler.nextInChain = nullptr;
-        materialDataLinearSamplerBinding.sampler.type = WGPUSamplerBindingType_Filtering;
-
-        WGPUBindGroupLayoutEntry materialDataAlbedoMapBinding{};
-        materialDataAlbedoMapBinding.nextInChain = nullptr;
-        materialDataAlbedoMapBinding.binding = 2;
-        materialDataAlbedoMapBinding.visibility = WGPUShaderStage_Fragment;
-        materialDataAlbedoMapBinding.texture.nextInChain = nullptr;
-        materialDataAlbedoMapBinding.texture.sampleType = WGPUTextureSampleType_Float;
-        materialDataAlbedoMapBinding.texture.viewDimension = WGPUTextureViewDimension_2D;
-        materialDataAlbedoMapBinding.texture.multisampled = false;
-
-        WGPUBindGroupLayoutEntry materialDataNormalMapBinding{};
-        materialDataNormalMapBinding.nextInChain = nullptr;
-        materialDataNormalMapBinding.binding = 3;
-        materialDataNormalMapBinding.visibility = WGPUShaderStage_Fragment;
-        materialDataNormalMapBinding.texture.nextInChain = nullptr;
-        materialDataNormalMapBinding.texture.sampleType = WGPUTextureSampleType_Float;
-        materialDataNormalMapBinding.texture.viewDimension = WGPUTextureViewDimension_2D;
-        materialDataNormalMapBinding.texture.multisampled = false;
-
-        WGPUBindGroupLayoutEntry materialDataBindGroupEntries[] = { materialDataMaterialBinding, materialDataLinearSamplerBinding, materialDataAlbedoMapBinding, materialDataNormalMapBinding };
+        WGPUBindGroupLayoutEntry materialDataBindGroupEntries[] = { materialDataMaterialBinding, };
         WGPUBindGroupLayoutDescriptor materialDataBindGroupLayoutDesc{};
         materialDataBindGroupLayoutDesc.nextInChain = nullptr;
         materialDataBindGroupLayoutDesc.label = "Material Data Bind Group Layout";
@@ -108,7 +84,7 @@ Renderer::Renderer(std::shared_ptr<gfx::RenderBackend> renderbackend)
         objectDataObjectTransformBinding.visibility = WGPUShaderStage_Vertex;
         objectDataObjectTransformBinding.buffer.nextInChain = nullptr;
         objectDataObjectTransformBinding.buffer.type = WGPUBufferBindingType_Uniform;
-        objectDataObjectTransformBinding.buffer.hasDynamicOffset = false;
+        objectDataObjectTransformBinding.buffer.hasDynamicOffset = true;
         objectDataObjectTransformBinding.buffer.minBindingSize = 0;
 
         WGPUBindGroupLayoutEntry objectDataBindGroupEntries[] = { objectDataObjectTransformBinding, };
@@ -247,7 +223,11 @@ Renderer::~Renderer()
     wgpuBindGroupLayoutRelease(m_materialDataBindGroupLayout);
     wgpuBindGroupLayoutRelease(m_sceneDataBindGroupLayout);
 
-    // Destroy depth-stencil target
+    // Destroy render pass resources
+    wgpuBufferDestroy(m_objectTransformDataUBO);
+    wgpuBufferDestroy(m_materialDataUBO);
+    wgpuBufferDestroy(m_cameraDataUBO);
+
     wgpuTextureViewRelease(m_depthStencilTargetView);
     wgpuTextureRelease(m_depthStencilTarget);
 }
@@ -264,11 +244,11 @@ void Renderer::render(entt::registry const& registry)
         return;
     }
 
-    // Prepare frame state
-    prepare(registry);
+    // Handle data upload for this frame
+    uploadSceneData(registry);
 
-    // Execute frame commands
-    execute(frame);
+    // Execute frame draws with draw list from frame preparation
+    execute(frame, prepare(registry));
 }
 
 void Renderer::onResize(uint32_t width, uint32_t height)
@@ -456,17 +436,209 @@ void Renderer::uploadSceneData(entt::registry const& registry)
     }
 }
 
-void Renderer::prepare(entt::registry const& registry)
+gfx::DrawList Renderer::prepare(entt::registry const& registry)
 {
+    // Get backend capabilities for data population
+    gfx::BackendCapabilities const backendCaps = m_renderbackend->getBackendCapabilities();
+
     // Gather render data from ECS registry
     auto const cameras = registry.view<Camera, Transform>();
     auto const objects = registry.view<RenderComponent, Transform>();
 
-    // TODO(nemjit001): Gather uniforms & upload
+    // Set up draw list for frame
+    gfx::DrawList drawList{};
+
+    // Gather camera uniform data
+    std::vector<CameraUniform> cameraUniforms{};
+    for (auto const& [_entity, camera, transform] : cameras.each())
+    {
+        gfx::FramebufferSize const framebufferSize = m_renderbackend->getFramebufferSize();
+        float const aspectRatio = static_cast<float>(framebufferSize.width) / static_cast<float>(framebufferSize.height);
+
+        glm::mat4 const view = transform.matrix();
+        glm::mat4 const project = camera.matrix(aspectRatio);
+        cameraUniforms.push_back({
+            view,
+            project,
+            project * view
+        });
+    }
+
+    // Gather material/object uniform data & record opaque draw data
+    std::vector<MaterialUniform> materialUniforms{};
+    std::vector<ObjectTranformUniform> objectTransformUniforms{};
+    for (auto const& [_entity, object, transform] : objects.each())
+    {
+        if (!object.material || !object.mesh)
+        {
+            SPDLOG_WARN("Skipping entity {}: null material or mesh", entt::entt_traits<entt::entity>::to_entity(_entity));
+            continue;
+        }
+
+        bool const hasAlbedoMap = (object.material->albedoTexture != nullptr);
+        bool const hasNormalMap = (object.material->normalTexture != nullptr);
+        materialUniforms.push_back({
+            object.material->albedoColor, 1.0F /* padding */,
+            hasAlbedoMap,
+            hasNormalMap
+        });
+
+        glm::mat4 const modelTransform = transform.matrix();
+        glm::mat4 const normalTransform = glm::inverse(glm::transpose(glm::mat3(modelTransform)));
+        objectTransformUniforms.push_back({
+            modelTransform,
+            normalTransform
+        });
+
+        size_t const materialOffset = materialUniforms.size() - 1;
+        size_t const objectOffset = objectTransformUniforms.size() - 1;
+        drawList.append(RENDERER_PASS_OPAQUE, {
+            0, // Always use camera 0 for now since multiple cameras are not yet supported...
+            static_cast<uint32_t>(materialOffset),
+            static_cast<uint32_t>(objectOffset),
+            object.mesh
+        });
+    }
+
+    // Populate camera UBO
+    {
+        size_t const cameraUniformAlignment = core::alignAddress(sizeof(CameraUniform), backendCaps.minUniformBufferOffsetAlignment);
+        size_t const cameraUniformBufferSize = cameraUniforms.size() * cameraUniformAlignment;
+        if (m_cameraDataUBO == nullptr || wgpuBufferGetSize(m_cameraDataUBO) < cameraUniformBufferSize) {
+            WGPUBufferDescriptor cameraUBODesc{};
+            cameraUBODesc.nextInChain = nullptr;
+            cameraUBODesc.label = "Camera UBO";
+            cameraUBODesc.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform;
+            cameraUBODesc.size = cameraUniformBufferSize;
+            cameraUBODesc.mappedAtCreation = false;
+
+            m_cameraDataUBO = wgpuDeviceCreateBuffer(m_renderbackend->getDevice(), &cameraUBODesc);
+        }
+
+        for (size_t i = 0; i < cameraUniforms.size(); i++)
+        {
+            size_t const offset = cameraUniformAlignment * i;
+            wgpuQueueWriteBuffer(m_renderbackend->getQueue(), m_cameraDataUBO, offset, &cameraUniforms[i], sizeof(CameraUniform));
+        }
+    }
+
+    // Populate material UBO
+    {
+        size_t const materialUniformAlignment = core::alignAddress(sizeof(MaterialUniform), backendCaps.minUniformBufferOffsetAlignment);
+        size_t const materialUniformBufferSize = materialUniforms.size() * materialUniformAlignment;
+        if (m_materialDataUBO == nullptr || wgpuBufferGetSize(m_materialDataUBO) < materialUniformBufferSize) {
+            WGPUBufferDescriptor materialUBODesc{};
+            materialUBODesc.nextInChain = nullptr;
+            materialUBODesc.label = "Material UBO";
+            materialUBODesc.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform;
+            materialUBODesc.size = materialUniformBufferSize;
+            materialUBODesc.mappedAtCreation = false;
+
+            m_materialDataUBO = wgpuDeviceCreateBuffer(m_renderbackend->getDevice(), &materialUBODesc);
+        }
+
+        for (size_t i = 0; i < materialUniforms.size(); i++)
+        {
+            size_t const offset = materialUniformAlignment * i;
+            wgpuQueueWriteBuffer(m_renderbackend->getQueue(), m_materialDataUBO, offset, &materialUniforms[i], sizeof(MaterialUniform));
+        }
+    }
+
+    // Populate object transform UBO
+    {
+        size_t const objectTransformUniformAlignment = core::alignAddress(sizeof(ObjectTranformUniform), backendCaps.minUniformBufferOffsetAlignment);
+        size_t const objectTransformUniformBufferSize = objectTransformUniforms.size() * objectTransformUniformAlignment;
+        if (m_objectTransformDataUBO == nullptr || wgpuBufferGetSize(m_objectTransformDataUBO) < objectTransformUniformBufferSize) {
+            WGPUBufferDescriptor objectTransformUBODesc{};
+            objectTransformUBODesc.nextInChain = nullptr;
+            objectTransformUBODesc.label = "Object Transform UBO";
+            objectTransformUBODesc.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform;
+            objectTransformUBODesc.size = objectTransformUniformBufferSize;
+            objectTransformUBODesc.mappedAtCreation = false;
+
+            m_objectTransformDataUBO = wgpuDeviceCreateBuffer(m_renderbackend->getDevice(), &objectTransformUBODesc);
+        }
+
+        for (size_t i = 0; i < objectTransformUniforms.size(); i++)
+        {
+            size_t const offset = objectTransformUniformAlignment * i;
+            wgpuQueueWriteBuffer(m_renderbackend->getQueue(), m_objectTransformDataUBO, offset, &objectTransformUniforms[i], sizeof(ObjectTranformUniform));
+        }
+    }
+
+    // Recreate scene data bind group
+    {
+        WGPUBindGroupEntry sceneDataCameraBinding{};
+        sceneDataCameraBinding.nextInChain = nullptr;
+        sceneDataCameraBinding.binding = 0;
+        sceneDataCameraBinding.buffer = m_cameraDataUBO;
+        sceneDataCameraBinding.offset = 0;
+        sceneDataCameraBinding.size = core::alignAddress(sizeof(CameraUniform), backendCaps.minUniformBufferOffsetAlignment);
+
+        WGPUBindGroupEntry sceneDataBindGroupEntries[] = { sceneDataCameraBinding, };
+        WGPUBindGroupDescriptor sceneDataBindGroupDesc{};
+        sceneDataBindGroupDesc.nextInChain = nullptr;
+        sceneDataBindGroupDesc.label = "Scene Data Bind Group";
+        sceneDataBindGroupDesc.layout = m_sceneDataBindGroupLayout;
+        sceneDataBindGroupDesc.entryCount = std::size(sceneDataBindGroupEntries);
+        sceneDataBindGroupDesc.entries = sceneDataBindGroupEntries;
+
+        if (m_sceneDataBindGroup) wgpuBindGroupRelease(m_sceneDataBindGroup);
+        m_sceneDataBindGroup = wgpuDeviceCreateBindGroup(m_renderbackend->getDevice(), &sceneDataBindGroupDesc);
+    }
+
+    // Recreate material data bind group
+    {
+        WGPUBindGroupEntry materialDataMaterialBinding{};
+        materialDataMaterialBinding.nextInChain = nullptr;
+        materialDataMaterialBinding.binding = 0;
+        materialDataMaterialBinding.buffer = m_materialDataUBO;
+        materialDataMaterialBinding.offset = 0;
+        materialDataMaterialBinding.size = core::alignAddress(sizeof(MaterialUniform), backendCaps.minUniformBufferOffsetAlignment);
+
+        WGPUBindGroupEntry materialDataBindGroupEntries[] = { materialDataMaterialBinding, };
+        WGPUBindGroupDescriptor materialDataBindGroupDesc{};
+        materialDataBindGroupDesc.nextInChain = nullptr;
+        materialDataBindGroupDesc.label = "Material Data Bind Group";
+        materialDataBindGroupDesc.layout = m_materialDataBindGroupLayout;
+        materialDataBindGroupDesc.entryCount = std::size(materialDataBindGroupEntries);
+        materialDataBindGroupDesc.entries = materialDataBindGroupEntries;
+
+        if (m_materialDataBindGroup) wgpuBindGroupRelease(m_materialDataBindGroup);
+        m_materialDataBindGroup = wgpuDeviceCreateBindGroup(m_renderbackend->getDevice(), &materialDataBindGroupDesc);
+    }
+
+    // Recreate object data bind group
+    {
+        WGPUBindGroupEntry objectDataObjectTransformBinding{};
+        objectDataObjectTransformBinding.nextInChain = nullptr;
+        objectDataObjectTransformBinding.binding = 0;
+        objectDataObjectTransformBinding.buffer = m_objectTransformDataUBO;
+        objectDataObjectTransformBinding.offset = 0;
+        objectDataObjectTransformBinding.size = core::alignAddress(sizeof(ObjectTranformUniform), backendCaps.minUniformBufferOffsetAlignment);
+
+        WGPUBindGroupEntry objectDataBindGroupEntries[] = { objectDataObjectTransformBinding, };
+        WGPUBindGroupDescriptor objectDataBindGroupDesc{};
+        objectDataBindGroupDesc.nextInChain = nullptr;
+        objectDataBindGroupDesc.label = "Object Data Bind Group";
+        objectDataBindGroupDesc.layout = m_objectDataBindGroupLayout;
+        objectDataBindGroupDesc.entryCount = std::size(objectDataBindGroupEntries);
+        objectDataBindGroupDesc.entries = objectDataBindGroupEntries;
+
+        if (m_objectDataBindGroup) wgpuBindGroupRelease(m_objectDataBindGroup);
+        m_objectDataBindGroup = wgpuDeviceCreateBindGroup(m_renderbackend->getDevice(), &objectDataBindGroupDesc);
+    }
+
+    // Dump some draw call stats
+    SPDLOG_TRACE("Opaque Draw Calls: {}", drawList.commands(RENDERER_PASS_OPAQUE).size());
+    return drawList;
 }
 
-void Renderer::execute(gfx::FrameState frame)
+void Renderer::execute(gfx::FrameState frame, gfx::DrawList const& drawList)
 {
+    // Get backend capabilities for alignment info
+    gfx::BackendCapabilities const backendCaps = m_renderbackend->getBackendCapabilities();
+
     // Start command recording for frame
     WGPUCommandEncoderDescriptor encoderDesc{};
     encoderDesc.nextInChain = nullptr;
@@ -508,12 +680,41 @@ void Renderer::execute(gfx::FrameState frame)
     WGPURenderPassEncoder renderPass = wgpuCommandEncoderBeginRenderPass(frameCommandEncoder, &renderPassDesc);
 
     // Record opaque object pass
+    wgpuRenderPassEncoderPushDebugGroup(renderPass, RENDERER_PASS_OPAQUE);
+
     gfx::FramebufferSize const swapFramebufferSize = m_renderbackend->getFramebufferSize();
     wgpuRenderPassEncoderSetViewport(renderPass, 0.0F, 0.0F, static_cast<float>(swapFramebufferSize.width), static_cast<float>(swapFramebufferSize.height), 0.0F, 1.0F);
     wgpuRenderPassEncoderSetScissorRect(renderPass, 0, 0, swapFramebufferSize.width, swapFramebufferSize.height);
     wgpuRenderPassEncoderSetPipeline(renderPass, m_pipeline);
 
-    // Finish opaque object pass
+    for (auto const& command : drawList.commands(RENDERER_PASS_OPAQUE))
+    {
+        auto const& mesh = command.mesh;
+        assert(mesh != nullptr && !mesh->isDirty() && "Dirty mesh passed to draw command!");
+
+        // Set bind groups with dynamic offsets
+        uint32_t const sceneDataDynamicOffsets[] = {
+            static_cast<uint32_t>(command.cameraOffset * core::alignAddress(sizeof(CameraUniform), backendCaps.minUniformBufferOffsetAlignment)),
+        };
+        wgpuRenderPassEncoderSetBindGroup(renderPass, 0, m_sceneDataBindGroup, std::size(sceneDataDynamicOffsets), sceneDataDynamicOffsets);
+
+        uint32_t const materialDataDynamicOffsets[] = {
+            static_cast<uint32_t>(command.materialOffset * core::alignAddress(sizeof(MaterialUniform), backendCaps.minUniformBufferOffsetAlignment)),
+        };
+        wgpuRenderPassEncoderSetBindGroup(renderPass, 1, m_materialDataBindGroup, std::size(materialDataDynamicOffsets), materialDataDynamicOffsets);
+
+        uint32_t const objectDataDynamicOffsets[] = {
+            static_cast<uint32_t>(command.objectOffset * core::alignAddress(sizeof(ObjectTranformUniform), backendCaps.minUniformBufferOffsetAlignment)),
+        };
+        wgpuRenderPassEncoderSetBindGroup(renderPass, 2, m_objectDataBindGroup, std::size(objectDataDynamicOffsets), objectDataDynamicOffsets);
+
+        // Record mesh draw
+        wgpuRenderPassEncoderSetVertexBuffer(renderPass, 0, mesh->getVertexBuffer(), 0, mesh->vertexCount() * sizeof(gfx::Vertex));
+        wgpuRenderPassEncoderSetIndexBuffer(renderPass, mesh->getIndexBuffer(), WGPUIndexFormat_Uint32, 0, mesh->indexCount() * sizeof(gfx::IndexType));
+        wgpuRenderPassEncoderDrawIndexed(renderPass, mesh->indexCount(), 1, 0, 0, 0);
+    }
+
+    wgpuRenderPassEncoderPopDebugGroup(renderPass);
     wgpuRenderPassEncoderEnd(renderPass);
 
     // Finish command recording

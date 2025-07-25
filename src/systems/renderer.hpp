@@ -5,7 +5,10 @@
 #include <entt/entt.hpp>
 #include <glm/glm.hpp>
 
+#include "rendering/draw_list.hpp"
 #include "rendering/render_backend.hpp"
+
+#define RENDERER_PASS_OPAQUE "Opaque Pass"
 
 /// @brief Uniform camera data.
 struct CameraUniform
@@ -58,11 +61,12 @@ private:
 
     /// @brief Prepare the game frame state.
     /// @param registry 
-    void prepare(entt::registry const& registry);
+    /// @retrurn A drawlist containing all render pass draw commands.
+    gfx::DrawList prepare(entt::registry const& registry);
 
     /// @brief Execute the game frame render state.
     /// @param registry 
-    void execute(gfx::FrameState frame);
+    void execute(gfx::FrameState frame, gfx::DrawList const& drawlist);
 
 private:
     std::shared_ptr<gfx::RenderBackend> m_renderbackend;
@@ -71,10 +75,19 @@ private:
     WGPUTexture         m_depthStencilTarget            = nullptr;
     WGPUTextureView     m_depthStencilTargetView        = nullptr;
 
+    WGPUBuffer          m_cameraDataUBO                 = nullptr;
+    WGPUBuffer          m_materialDataUBO               = nullptr;
+    WGPUBuffer          m_objectTransformDataUBO        = nullptr;
+
     // Pipeline resources
     WGPUBindGroupLayout m_sceneDataBindGroupLayout      = nullptr;
     WGPUBindGroupLayout m_materialDataBindGroupLayout   = nullptr;
     WGPUBindGroupLayout m_objectDataBindGroupLayout     = nullptr;
     WGPUPipelineLayout  m_pipelineLayout                = nullptr;
     WGPURenderPipeline  m_pipeline                      = nullptr;
+
+    // Pipeline bind groups
+    WGPUBindGroup       m_sceneDataBindGroup            = nullptr;
+    WGPUBindGroup       m_materialDataBindGroup         = nullptr;
+    WGPUBindGroup       m_objectDataBindGroup           = nullptr;
 };

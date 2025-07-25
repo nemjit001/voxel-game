@@ -46,37 +46,52 @@ namespace gfx
 			throw std::runtime_error("WGPU surface create failed");
 		}
 
-		// Request a WebGPU adapter and device
+		// Request a WebGPU adapter & retrieve adapter limits
 		WGPURequestAdapterOptions adapterOptions{};
 		adapterOptions.nextInChain = nullptr;
 		adapterOptions.powerPreference = WGPUPowerPreference_HighPerformance;
 		adapterOptions.compatibleSurface = m_surface;
+
+		m_adapter = requestAdapter(m_instance, &adapterOptions);
+		if (!m_adapter) {
+			throw std::runtime_error("WGPU adapter request failed");
+		}
+		
+		WGPUSupportedLimits adapterLimits{};
+		wgpuAdapterGetLimits(m_adapter, &adapterLimits);
+
+		// Request a WebGPU device
+		WGPURequiredLimits deviceLimits{};
+		deviceLimits.limits = adapterLimits.limits; // Just use default limits for now :)
 
 		WGPUDeviceDescriptor deviceDesc{};
 		deviceDesc.nextInChain = nullptr;
 		deviceDesc.label = "WGPU device";
 		deviceDesc.requiredFeatureCount = 0;
 		deviceDesc.requiredFeatures = nullptr;
-		deviceDesc.requiredLimits = nullptr;
+		deviceDesc.requiredLimits = &deviceLimits;
 		deviceDesc.defaultQueue.nextInChain = nullptr;
 		deviceDesc.defaultQueue.label = "WGPU queue";
 		deviceDesc.deviceLostCallback = nullptr;
 		deviceDesc.deviceLostUserdata = nullptr;
+#if		WEBGPU_BACKEND_EMSCRIPTEN
+		deviceDesc.requiredLimits = nullptr; // Emscripten complains that limits don't exist so we can't request them here :/
+#endif
 
-		m_adapter = requestAdapter(m_instance, &adapterOptions);
 		m_device = requestDevice(m_adapter, &deviceDesc);
 		if (!m_adapter || !m_device) {
-			throw std::runtime_error("WGPU adapter or device request failed");
+			throw std::runtime_error("WGPU device request failed");
 		}
 
 #if		WEBGPU_BACKEND_EMSCRIPTEN
+		// NOTE(nemjit001): Emscripten complains that adapter props are depracated, so we need this define :/
 		WGPUAdapterInfo adapterInfo{};
 		wgpuAdapterGetInfo(m_adapter, &adapterInfo);
 		SPDLOG_INFO("Using hardware adapter {} ({})", adapterInfo.device, adapterInfo.deviceID);
 #else
-		WGPUAdapterProperties adapterInfo{};
-		wgpuAdapterGetProperties(m_adapter, &adapterInfo);
-		SPDLOG_INFO("Using hardware adapter {} ({})", adapterInfo.name, adapterInfo.deviceID);
+		WGPUAdapterProperties adapterProperties{};
+		wgpuAdapterGetProperties(m_adapter, &adapterProperties);
+		SPDLOG_INFO("Using hardware adapter {} ({})", adapterProperties.name, adapterProperties.deviceID);
 #endif	// WEBGPU_BACKEND_EMSCRIPTEN
 
 		// Hook up error callbacks
@@ -196,6 +211,17 @@ namespace gfx
 		surfaceConfig.presentMode = m_surfaceInfo.currentPresentMode;
 
 		wgpuSurfaceConfigure(m_surface, &surfaceConfig);
+	}
+
+	BackendCapabilities RenderBackend::getBackendCapabilities() const
+	{
+		WGPUSupportedLimits limits{};
+		wgpuDeviceGetLimits(m_device, &limits);
+
+		BackendCapabilities caps{};
+		caps.minUniformBufferOffsetAlignment = limits.limits.minUniformBufferOffsetAlignment;
+
+		return caps;
 	}
 
 	WGPUAdapter RenderBackend::requestAdapter(WGPUInstance instance, WGPURequestAdapterOptions* pOptions) const
