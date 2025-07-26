@@ -24,6 +24,11 @@ public:
 	/// @return 
 	inline glm::vec3 right() const;
 
+	/// @brief Set the transform direction to point to the given forward direction.
+	/// @param forward Forward direction to look at.
+	/// @param up Up direction to use for lateral rotation.
+	void lookAt(glm::vec3 const& forward, glm::vec3 const& up = Transform::WORLD_UP);
+
 public:
 	static constexpr glm::vec3 WORLD_ORIGIN		= { 0.0F, 0.0F, 0.0F }; // World origin
 	static constexpr glm::vec3 WORLD_FORWARD	= { 0.0F, 0.0F, 1.0F }; // World forward vector

@@ -90,17 +90,23 @@ Game::Game()
 
     // Set up simple game world with basic meshes / camera for now
     {
+        // Set up a simple camera position w/ lookat to world origin
+        auto cameraTransform = Transform{ { 0.0F, 2.0F, 5.0F } };
+        cameraTransform.lookAt(glm::normalize(Transform::WORLD_ORIGIN - cameraTransform.position));
+
+        // Create camera entity
         auto camera = m_registry->create();
         m_registry->emplace<Camera>(camera, PerspectiveCamera{ 60.0F, 0.1F, 1000.0F });
-        m_registry->emplace<Transform>(camera, Transform{ { 0.0F, 0.0F, -5.0F } });
+        m_registry->emplace<Transform>(camera, cameraTransform);
 
+        // Set up 2 entities with render components using a mesh file loaded from disk
         auto suzanneMesh = assets::MeshLoader().load(core::fs::getFullAssetPath("assets/suzanne.glb"));
         auto suzanneMaterial = std::make_shared<gfx::Material>();
 
         auto suzanne1 = m_registry->create();
         m_registry->emplace<RenderComponent>(suzanne1, RenderComponent{ suzanneMesh, suzanneMaterial });
         m_registry->emplace<Transform>(suzanne1, Transform{ { 2.0F, 0.0F, 0.0F } });
-
+        
         auto suzanne2 = m_registry->create();
         m_registry->emplace<RenderComponent>(suzanne2, RenderComponent{ suzanneMesh, suzanneMaterial });
         m_registry->emplace<Transform>(suzanne2, Transform{ { -2.0F, 0.0F, 0.0F } });

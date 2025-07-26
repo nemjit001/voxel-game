@@ -455,7 +455,7 @@ gfx::DrawList Renderer::prepare(entt::registry const& registry)
         gfx::FramebufferSize const framebufferSize = m_renderbackend->getFramebufferSize();
         float const aspectRatio = static_cast<float>(framebufferSize.width) / static_cast<float>(framebufferSize.height);
 
-        glm::mat4 const view = transform.matrix();
+        glm::mat4 const view = glm::inverse(transform.matrix()); // World -> View is inverse transform matrix
         glm::mat4 const project = camera.matrix(aspectRatio);
         cameraUniforms.push_back({
             view,

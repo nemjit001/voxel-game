@@ -89,6 +89,7 @@ add_executable(VoxelGame
     "src/components/camera.cpp"
     "src/components/camera.hpp"
     "src/components/render_component.hpp"
+    "src/components/transform.cpp"
     "src/components/transform.hpp"
     "src/systems/renderer.cpp"
     "src/systems/renderer.hpp"
