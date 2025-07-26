@@ -385,7 +385,7 @@ void Renderer::uploadSceneData(entt::registry const& registry)
                 format = WGPUTextureFormat_RG8Unorm;
                 break;
             case 3:
-                format = WGPUTextureFormat_RGBA8Unorm; // Uses RGBA since RGB is not available in WebGPU
+                throw std::runtime_error("WGPU does not support 3 channel textures");
                 break;
             case 4:
                 format = WGPUTextureFormat_RGBA8Unorm;

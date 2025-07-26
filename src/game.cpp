@@ -6,6 +6,7 @@
 #include "macros.hpp"
 #include "core/files.hpp"
 #include "assets/mesh_loader.hpp"
+#include "assets/texture_loader.hpp"
 #include "components/camera.hpp"
 #include "components/render_component.hpp"
 #include "components/transform.hpp"
@@ -102,6 +103,8 @@ Game::Game()
         // Set up 2 entities with render components using a mesh file loaded from disk
         auto suzanneMesh = assets::MeshLoader().load(core::fs::getFullAssetPath("assets/suzanne.glb"));
         auto suzanneMaterial = std::make_shared<gfx::Material>();
+        suzanneMaterial->albedoTexture = assets::TextureLoader().load(core::fs::getFullAssetPath("assets/brickwall.jpg"));
+        suzanneMaterial->normalTexture = assets::TextureLoader().load(core::fs::getFullAssetPath("assets/brickwall_normal.jpg"));
 
         auto suzanne1 = m_registry->create();
         m_registry->emplace<RenderComponent>(suzanne1, RenderComponent{ suzanneMesh, suzanneMaterial });

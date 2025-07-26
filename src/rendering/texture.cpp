@@ -11,7 +11,7 @@ namespace gfx
 		m_components(components)
 	{
 		assert(extent.width > 0 && extent.height > 0 && extent.depthOrArrayLayers > 0 && "Texture extent cannot be 0 in any direction");
-		assert(components > 0 && components < 4 && "Components must be between 0 and 4");
+		assert(components > 0 && components <= 4 && "Components must be between 0 and 4");
 		assert(pTextureData != nullptr && "Texture data cannot be a nullptr");
 
 		// Set internal buffer size

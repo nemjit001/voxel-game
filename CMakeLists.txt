@@ -37,6 +37,8 @@ FetchContent_Declare(stb
     GIT_SHALLOW     TRUE
 )
 
+set(TINYGLTF_HEADER_ONLY ON CACHE INTERNAL "" FORCE)
+set(TINYGLTF_INSTALL OFF CACHE INTERNAL "" FORCE)
 FetchContent_Declare(tinygltf
     GIT_REPOSITORY  https://github.com/syoyo/tinygltf.git
     GIT_TAG         v2.9.6
@@ -86,6 +88,8 @@ add_executable(VoxelGame
     "src/rendering/vertex_layout.hpp"
     "src/assets/mesh_loader.cpp"
     "src/assets/mesh_loader.hpp"
+    "src/assets/texture_loader.cpp"
+    "src/assets/texture_loader.hpp"
     "src/components/camera.cpp"
     "src/components/camera.hpp"
     "src/components/render_component.hpp"
@@ -102,6 +106,8 @@ target_enable_extended_warnings(VoxelGame)
 target_copy_webgpu_binaries(VoxelGame)
 target_register_assets(VoxelGame
     "assets/shaders/shaders.wgsl"
+    "assets/brickwall.jpg"
+    "assets/brickwall_normal.jpg"
     "assets/suzanne.glb"
 )
 

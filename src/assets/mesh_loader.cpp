@@ -1,9 +1,15 @@
 #include "mesh_loader.hpp"
 
+#define TINYGLTF_IMPLEMENTATION
+#define TINYGLTF_NO_INCLUDE_STB_IMAGE
+#define TINYGLTF_NO_STB_IMAGE_WRITE
+
 #include <cassert>
 #include <vector>
 #include <glm/glm.hpp>
 #include <spdlog/spdlog.h>
+#include <stb_image.h>
+#include <stb_image_write.h>
 #include <tiny_gltf.h>
 
 #include "macros.hpp"
