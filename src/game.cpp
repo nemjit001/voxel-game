@@ -103,8 +103,8 @@ Game::Game()
         // Set up 2 entities with render components using a mesh file loaded from disk
         auto suzanneMesh = assets::MeshLoader().load(core::fs::getFullAssetPath("assets/suzanne.glb"));
         auto suzanneMaterial = std::make_shared<gfx::Material>();
-        suzanneMaterial->albedoTexture = assets::TextureLoader().load(core::fs::getFullAssetPath("assets/brickwall.jpg"));
-        suzanneMaterial->normalTexture = assets::TextureLoader().load(core::fs::getFullAssetPath("assets/brickwall_normal.jpg"));
+        suzanneMaterial->albedoTexture = assets::TextureLoader().load(core::fs::getFullAssetPath("assets/brickwall.jpg"), gfx::TextureMode::ColorData);
+        suzanneMaterial->normalTexture = assets::TextureLoader().load(core::fs::getFullAssetPath("assets/brickwall_normal.jpg"), gfx::TextureMode::NonColorData);
 
         auto suzanne1 = m_registry->create();
         m_registry->emplace<RenderComponent>(suzanne1, RenderComponent{ suzanneMesh, suzanneMaterial });

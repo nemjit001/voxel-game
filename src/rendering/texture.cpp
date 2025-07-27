@@ -4,11 +4,12 @@
 
 namespace gfx
 {
-	Texture::Texture(TextureDimensions dimensions, TextureExtent const& extent, uint8_t components, void* pTextureData)
+	Texture::Texture(TextureDimensions dimensions, TextureExtent const& extent, uint8_t components, void* pTextureData, TextureMode mode)
 		:
 		m_dimensions(dimensions),
 		m_extent(extent),
-		m_components(components)
+		m_components(components),
+		m_textureMode(mode)
 	{
 		assert(extent.width > 0 && extent.height > 0 && extent.depthOrArrayLayers > 0 && "Texture extent cannot be 0 in any direction");
 		assert(components > 0 && components <= 4 && "Components must be between 0 and 4");

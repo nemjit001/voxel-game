@@ -10,7 +10,7 @@
 
 namespace assets
 {
-	std::shared_ptr<gfx::Texture> TextureLoader::load(std::string const& path)
+	std::shared_ptr<gfx::Texture> TextureLoader::load(std::string const& path, gfx::TextureMode mode)
 	{
 		SPDLOG_INFO("Loading texture file {}", path);
 
@@ -46,7 +46,8 @@ namespace assets
 			gfx::TextureDimensions::Dim2D,
 			extent,
 			static_cast<uint8_t>(c),
-			pImageData
+			pImageData,
+			mode
 		);
 
 		STBI_FREE(pImageData);

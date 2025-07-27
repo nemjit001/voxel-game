@@ -419,7 +419,8 @@ void Renderer::uploadSceneData(entt::registry const& registry)
                 throw std::runtime_error("WGPU does not support 3 channel textures");
                 break;
             case 4:
-                format = WGPUTextureFormat_RGBA8Unorm;
+                format = (texture->textureMode() == gfx::TextureMode::ColorData) ?
+                    WGPUTextureFormat_RGBA8UnormSrgb : WGPUTextureFormat_RGBA8Unorm;
                 break;
             default:
                 break;

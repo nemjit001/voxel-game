@@ -91,7 +91,6 @@ fn FSForwardShading(input: VertexOutput) -> FragmentOutput
     if (material.hasAlbedoMap != 0)
     {
         albedo = textureSample(albedoMap, albedoSampler, input.texcoord);
-        albedo = vec4f(pow(albedo.rgb, vec3f(GAMMA)), albedo.a);
     }
 
     // Get shading normal

@@ -14,6 +14,13 @@ namespace gfx
 		Dim3D,
 	};
 
+	/// @brief Texture color mode to indicate data type.
+	enum class TextureMode
+	{
+		NonColorData,
+		ColorData,
+	};
+
 	/// @brief Texture extent in 3 directions.
 	struct TextureExtent
 	{
@@ -31,7 +38,8 @@ namespace gfx
 		/// @param extent Texture extent in x/y/z directions, supports layered texturees.
 		/// @param components Number of color channels in this texture.
 		/// @param pTextureData Contiguous texture data, this will be copied to an internal buffer.
-		Texture(TextureDimensions dimensions, TextureExtent const& extent, uint8_t components, void* pTextureData);
+		/// @param mode Indicate texture color mode.
+		Texture(TextureDimensions dimensions, TextureExtent const& extent, uint8_t components, void* pTextureData, TextureMode mode);
 		~Texture();
 
 		Texture(Texture const&) = delete;
@@ -60,6 +68,10 @@ namespace gfx
 		/// @return 
 		uint8_t const* data() const { return m_data.data(); }
 
+		/// @brief Check if this texture is in SRGB color space.
+		/// @return 
+		TextureMode textureMode() const { return m_textureMode; }
+
 		/// @brief Set the device-side texture handle. Takes ownership of this texture.
 		/// @param texture 
 		void setTexture(WGPUTexture texture);
@@ -86,6 +98,7 @@ namespace gfx
 		TextureExtent			m_extent		= {};
 		uint8_t					m_components	= 0;	// Color components
 		std::vector<uint8_t>	m_data			= {};	// Texture data stored as byte array.
+		TextureMode				m_textureMode	= TextureMode::NonColorData;
 		WGPUTexture				m_texture		= nullptr;
 		WGPUTextureView			m_textureView	= nullptr;
 		WGPUSampler				m_sampler		= nullptr;
