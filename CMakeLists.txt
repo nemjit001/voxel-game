@@ -76,8 +76,6 @@ add_executable(VoxelGame
     "src/core/files.hpp"
     "src/core/memory.hpp"
     "src/core/timer.hpp"
-    "src/rendering/draw_list.cpp"
-    "src/rendering/draw_list.hpp"
     "src/rendering/material.hpp"
     "src/rendering/mesh.cpp"
     "src/rendering/mesh.hpp"

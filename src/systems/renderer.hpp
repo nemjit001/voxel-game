@@ -1,12 +1,14 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <memory>
+#include <string>
 #include <vector>
 #include <entt/entt.hpp>
 #include <glm/glm.hpp>
 
-#include "rendering/draw_list.hpp"
+#include "rendering/mesh.hpp"
 #include "rendering/render_backend.hpp"
 
 #define RENDERER_PASS_OPAQUE "Opaque Pass"
@@ -32,6 +34,30 @@ struct ObjectTranformUniform
 {
     glm::mat4 modelTransform;
     glm::mat4 normalTransform;
+};
+
+/// @brief Draw command with data offsets and associated mesh.
+struct DrawCommand
+{
+    uint32_t                    cameraOffset;
+    uint32_t                    materialOffset;
+    uint32_t                    objectOffset;
+    std::shared_ptr<gfx::Mesh>  mesh;
+};
+
+/// @brief Draw list containing per-pass draw calls sorted by pass name.
+class DrawList
+{
+public:
+    /// @brief Append a draw command to a render pass.
+    /// @param pass Pass name to append draw call to.
+    /// @param command Draw command containing draw data.
+    void append(std::string const& pass, DrawCommand const& command);
+
+    std::vector<DrawCommand> commands(std::string const& pass) const;
+
+private:
+    std::unordered_map<std::string, std::vector<DrawCommand>> m_commands{};
 };
 
 /// @brief The Renderer system handles rendering the game world entities.
@@ -63,11 +89,11 @@ private:
     /// @brief Prepare the game frame state.
     /// @param registry 
     /// @retrurn A drawlist containing all render pass draw commands.
-    gfx::DrawList prepare(entt::registry const& registry);
+    DrawList prepare(entt::registry const& registry);
 
     /// @brief Execute the game frame render state.
     /// @param registry 
-    void execute(gfx::FrameState frame, gfx::DrawList const& drawlist);
+    void execute(gfx::FrameState frame, DrawList const& drawlist);
 
 private:
     std::shared_ptr<gfx::RenderBackend> m_renderbackend;

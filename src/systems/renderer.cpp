@@ -11,6 +11,21 @@
 #include "components/render_component.hpp"
 #include "components/transform.hpp"
 
+void DrawList::append(std::string const& pass, DrawCommand const& command)
+{
+    m_commands[pass].push_back(command);
+}
+
+std::vector<DrawCommand> DrawList::commands(std::string const& pass) const
+{
+    auto const& it = m_commands.find(pass);
+    if (it == m_commands.end()) {
+        return {};
+    }
+
+    return it->second;
+}
+
 Renderer::Renderer(std::shared_ptr<gfx::RenderBackend> renderbackend)
 	:
 	m_renderbackend(renderbackend)
@@ -488,7 +503,7 @@ void Renderer::uploadSceneData(entt::registry const& registry)
     }
 }
 
-gfx::DrawList Renderer::prepare(entt::registry const& registry)
+DrawList Renderer::prepare(entt::registry const& registry)
 {
     // Get backend capabilities for data population
     gfx::BackendCapabilities const backendCaps = m_renderbackend->getBackendCapabilities();
@@ -498,7 +513,7 @@ gfx::DrawList Renderer::prepare(entt::registry const& registry)
     auto const objects = registry.view<RenderComponent, Transform>();
 
     // Set up draw list for frame
-    gfx::DrawList drawList{};
+    DrawList drawList{};
 
     // Gather camera uniform data
     std::vector<CameraUniform> cameraUniforms{};
@@ -727,7 +742,7 @@ gfx::DrawList Renderer::prepare(entt::registry const& registry)
     return drawList;
 }
 
-void Renderer::execute(gfx::FrameState frame, gfx::DrawList const& drawList)
+void Renderer::execute(gfx::FrameState frame, DrawList const& drawList)
 {
     // Get backend capabilities for alignment info
     gfx::BackendCapabilities const backendCaps = m_renderbackend->getBackendCapabilities();
