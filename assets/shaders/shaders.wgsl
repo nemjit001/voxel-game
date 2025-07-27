@@ -1,3 +1,6 @@
+const GAMMA: f32        = 2.2;
+const INV_GAMMA: f32    = 1.0 / GAMMA;
+
 struct VertexInput
 {
     @location(0) position: vec3f,
@@ -43,18 +46,15 @@ struct ObjectTransform
 // Scene data bind group
 @group(0) @binding(0) var<uniform> camera: Camera;
 
-// Material data bind group
-@group(1) @binding(0) var<uniform> material: Material;
-
-// Texture data bind group
-// @group(2) @binding(0) var albedoSampler: sampler;
-// @group(2) @binding(1) var albedoMap: texture_2d<f32>;
-//
-// @group(2) @binding(2) var normalSampler: sampler;
-// @group(2) @binding(3) var normalMap: texture_2d<f32>;
-
 // Object data bind group
-@group(2) @binding(0) var<uniform> objectTransform: ObjectTransform;
+@group(1) @binding(0) var<uniform> objectTransform: ObjectTransform;
+
+// Material data bind group
+@group(2) @binding(0) var<uniform> material: Material;
+@group(2) @binding(1) var albedoSampler: sampler;
+@group(2) @binding(2) var albedoMap: texture_2d<f32>;
+@group(2) @binding(3) var normalSampler: sampler;
+@group(2) @binding(4) var normalMap: texture_2d<f32>;
 
 @vertex
 fn VSStaticVert(input: VertexInput) -> VertexOutput
@@ -90,22 +90,23 @@ fn FSForwardShading(input: VertexOutput) -> FragmentOutput
     var albedo = vec4f(material.albedoColor, 1);
     if (material.hasAlbedoMap != 0)
     {
-        // albedo = textureSample(albedoMap, linearSampler, input.texcoord);
+        albedo = textureSample(albedoMap, albedoSampler, input.texcoord);
+        albedo = vec4f(pow(albedo.rgb, vec3f(GAMMA)), albedo.a);
     }
 
     // Get shading normal
     var normal = vec3f(0, 0, 1);
     if (material.hasNormalMap != 0)
     {
-        // normal = textureSample(normalMap, linearSampler, input.texcoord).xyz;
-        // normal = 2.0 * normal - 1.0; // Remap normal to range [-1, 1]
+        normal = textureSample(normalMap, normalSampler, input.texcoord).xyz;
+        normal = 2.0 * normal - 1.0; // Remap normal to range [-1, 1]
     }
 
     // TODO(nemjit001): do some shading based on light positions in scene
     let shadingNormal = normalize(TBN * normal);
 
     var result = FragmentOutput();
-    result.color = vec4f(0.5 + 0.5 * shadingNormal, 1.0);
+    result.color = albedo;
 
     return result;
 }

@@ -17,19 +17,19 @@ namespace assets
 		// Load texture file from disk
 		int w, h, c; // width, height, channels
 		stbi_uc* pImageData = stbi_load(path.c_str(), &w, &h, &c, 0);
-		if (!pImageData)
-		{
-			SPDLOG_ERROR("Failed to load texture file (does it exist?)");
-			return {};
-		}
 
-		// XXX(nemjit001): This is kinda gross, but we reload the texture with 4 channels forced because WebGPU does not like RGB textures
-		// This works for now, but can be removed if channels are determined by enum or something
-		if (c == 3)
+		// XXX(nemjit001): This is kinda gross, but we reload the texture with 4 channels forced because WebGPU does not support RGB textures
+		if (pImageData && c == 3)
 		{
 			STBI_FREE(pImageData);		
 			pImageData = stbi_load(path.c_str(), &w, &h, nullptr, 4);
 			c = 4;
+		}
+
+		if (!pImageData)
+		{
+			SPDLOG_ERROR("Failed to load texture file (does it exist?)");
+			return {};
 		}
 
 		// Check if texture extent is actually valid

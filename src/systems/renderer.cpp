@@ -2,7 +2,6 @@
 
 #include <set>
 #include <unordered_map>
-#include <vector>
 #include <spdlog/spdlog.h>
 
 #include "core/files.hpp"
@@ -58,25 +57,6 @@ Renderer::Renderer(std::shared_ptr<gfx::RenderBackend> renderbackend)
 
         m_sceneDataBindGroupLayout = wgpuDeviceCreateBindGroupLayout(m_renderbackend->getDevice(), &sceneDataBindGroupLayoutDesc);
 
-        // Create material data bind group
-        WGPUBindGroupLayoutEntry materialDataMaterialBinding{};
-        materialDataMaterialBinding.nextInChain = nullptr;
-        materialDataMaterialBinding.binding = 0;
-        materialDataMaterialBinding.visibility = WGPUShaderStage_Fragment;
-        materialDataMaterialBinding.buffer.nextInChain = nullptr;
-        materialDataMaterialBinding.buffer.type = WGPUBufferBindingType_Uniform;
-        materialDataMaterialBinding.buffer.hasDynamicOffset = true;
-        materialDataMaterialBinding.buffer.minBindingSize = 0;
-
-        WGPUBindGroupLayoutEntry materialDataBindGroupEntries[] = { materialDataMaterialBinding, };
-        WGPUBindGroupLayoutDescriptor materialDataBindGroupLayoutDesc{};
-        materialDataBindGroupLayoutDesc.nextInChain = nullptr;
-        materialDataBindGroupLayoutDesc.label = "Material Data Bind Group Layout";
-        materialDataBindGroupLayoutDesc.entryCount = std::size(materialDataBindGroupEntries);
-        materialDataBindGroupLayoutDesc.entries = materialDataBindGroupEntries;
-
-        m_materialDataBindGroupLayout = wgpuDeviceCreateBindGroupLayout(m_renderbackend->getDevice(), &materialDataBindGroupLayoutDesc);
-
         // Create object data bind group
         WGPUBindGroupLayoutEntry objectDataObjectTransformBinding{};
         objectDataObjectTransformBinding.nextInChain = nullptr;
@@ -96,8 +76,59 @@ Renderer::Renderer(std::shared_ptr<gfx::RenderBackend> renderbackend)
 
         m_objectDataBindGroupLayout = wgpuDeviceCreateBindGroupLayout(m_renderbackend->getDevice(), &objectDataBindGroupLayoutDesc);
 
+        // Create material data bind group
+        WGPUBindGroupLayoutEntry materialDataMaterialBinding{};
+        materialDataMaterialBinding.nextInChain = nullptr;
+        materialDataMaterialBinding.binding = 0;
+        materialDataMaterialBinding.visibility = WGPUShaderStage_Fragment;
+        materialDataMaterialBinding.buffer.nextInChain = nullptr;
+        materialDataMaterialBinding.buffer.type = WGPUBufferBindingType_Uniform;
+        materialDataMaterialBinding.buffer.hasDynamicOffset = false;
+        materialDataMaterialBinding.buffer.minBindingSize = 0;
+
+        WGPUBindGroupLayoutEntry materialAlbedoSamplerBinding{};
+        materialAlbedoSamplerBinding.nextInChain = nullptr;
+        materialAlbedoSamplerBinding.binding = 1;
+        materialAlbedoSamplerBinding.visibility = WGPUShaderStage_Fragment;
+        materialAlbedoSamplerBinding.sampler.nextInChain = nullptr;
+        materialAlbedoSamplerBinding.sampler.type = WGPUSamplerBindingType_Filtering;
+
+        WGPUBindGroupLayoutEntry materialAlbedoMapBinding{};
+        materialAlbedoMapBinding.nextInChain = nullptr;
+        materialAlbedoMapBinding.binding = 2;
+        materialAlbedoMapBinding.visibility = WGPUShaderStage_Fragment;
+        materialAlbedoMapBinding.texture.nextInChain = nullptr;
+        materialAlbedoMapBinding.texture.sampleType = WGPUTextureSampleType_Float;
+        materialAlbedoMapBinding.texture.viewDimension = WGPUTextureViewDimension_2D;
+        materialAlbedoMapBinding.texture.multisampled = false;
+
+        WGPUBindGroupLayoutEntry materialNormalSamplerBinding{};
+        materialNormalSamplerBinding.nextInChain = nullptr;
+        materialNormalSamplerBinding.binding = 3;
+        materialNormalSamplerBinding.visibility = WGPUShaderStage_Fragment;
+        materialNormalSamplerBinding.sampler.nextInChain = nullptr;
+        materialNormalSamplerBinding.sampler.type = WGPUSamplerBindingType_Filtering;
+
+        WGPUBindGroupLayoutEntry materialNormalMapBinding{};
+        materialNormalMapBinding.nextInChain = nullptr;
+        materialNormalMapBinding.binding = 4;
+        materialNormalMapBinding.visibility = WGPUShaderStage_Fragment;
+        materialNormalMapBinding.texture.nextInChain = nullptr;
+        materialNormalMapBinding.texture.sampleType = WGPUTextureSampleType_Float;
+        materialNormalMapBinding.texture.viewDimension = WGPUTextureViewDimension_2D;
+        materialNormalMapBinding.texture.multisampled = false;
+
+        WGPUBindGroupLayoutEntry materialDataBindGroupEntries[] = { materialDataMaterialBinding, materialAlbedoSamplerBinding, materialAlbedoMapBinding, materialNormalSamplerBinding, materialNormalMapBinding, };
+        WGPUBindGroupLayoutDescriptor materialDataBindGroupLayoutDesc{};
+        materialDataBindGroupLayoutDesc.nextInChain = nullptr;
+        materialDataBindGroupLayoutDesc.label = "Material Data Bind Group Layout";
+        materialDataBindGroupLayoutDesc.entryCount = std::size(materialDataBindGroupEntries);
+        materialDataBindGroupLayoutDesc.entries = materialDataBindGroupEntries;
+
+        m_materialDataBindGroupLayout = wgpuDeviceCreateBindGroupLayout(m_renderbackend->getDevice(), &materialDataBindGroupLayoutDesc);
+
         // Create pipeline layout
-        WGPUBindGroupLayout bindGroupLayouts[] = { m_sceneDataBindGroupLayout, m_materialDataBindGroupLayout, m_objectDataBindGroupLayout, };
+        WGPUBindGroupLayout bindGroupLayouts[] = { m_sceneDataBindGroupLayout, m_objectDataBindGroupLayout, m_materialDataBindGroupLayout, };
         WGPUPipelineLayoutDescriptor layoutDesc{};
         layoutDesc.nextInChain = nullptr;
         layoutDesc.label = "Pipeline Layout";
@@ -412,6 +443,25 @@ void Renderer::uploadSceneData(entt::registry const& registry)
             WGPUTexture gpuTexture = wgpuDeviceCreateTexture(m_renderbackend->getDevice(), &textureDesc);
             SPDLOG_TRACE("Created texture handle (size: {}x{}x{})", textureDesc.size.width, textureDesc.size.height, textureDesc.size.depthOrArrayLayers);
 
+            // Create sampler
+            // TODO(nemjit001): Provide these params in texture object
+            WGPUSamplerDescriptor samplerDesc{};
+            samplerDesc.nextInChain = nullptr;
+            samplerDesc.label = "Texture Sampler (managed)";
+            samplerDesc.addressModeU = WGPUAddressMode_Repeat;
+            samplerDesc.addressModeV = WGPUAddressMode_Repeat;
+            samplerDesc.addressModeW = WGPUAddressMode_Repeat;
+            samplerDesc.magFilter = WGPUFilterMode_Linear;
+            samplerDesc.minFilter = WGPUFilterMode_Linear;
+            samplerDesc.mipmapFilter = WGPUMipmapFilterMode_Linear;
+            samplerDesc.lodMinClamp = 0.0F;
+            samplerDesc.lodMaxClamp = 0.0F;
+            samplerDesc.compare = WGPUCompareFunction_Undefined;
+            samplerDesc.maxAnisotropy = 1;
+
+            WGPUSampler sampler = wgpuDeviceCreateSampler(m_renderbackend->getDevice(), &samplerDesc);
+            SPDLOG_TRACE("Created texture sampler");
+
             // Upload texture data
             WGPUImageCopyTexture destination{};
             destination.nextInChain = nullptr;
@@ -431,6 +481,7 @@ void Renderer::uploadSceneData(entt::registry const& registry)
 
             // Update texture
             texture->setTexture(gpuTexture);
+            texture->setSampler(sampler);
             texture->clearDirtyFlag(); // Done :)
         }
     }
@@ -465,6 +516,7 @@ gfx::DrawList Renderer::prepare(entt::registry const& registry)
     }
 
     // Gather material/object uniform data & record opaque draw data
+    std::vector<std::shared_ptr<gfx::Material>> materialEntries{};
     std::vector<MaterialUniform> materialUniforms{};
     std::vector<ObjectTranformUniform> objectTransformUniforms{};
     for (auto const& [_entity, object, transform] : objects.each())
@@ -477,6 +529,7 @@ gfx::DrawList Renderer::prepare(entt::registry const& registry)
 
         bool const hasAlbedoMap = (object.material->albedoTexture != nullptr);
         bool const hasNormalMap = (object.material->normalTexture != nullptr);
+        materialEntries.push_back(object.material);
         materialUniforms.push_back({
             object.material->albedoColor, 1.0F /* padding */,
             hasAlbedoMap,
@@ -522,28 +575,6 @@ gfx::DrawList Renderer::prepare(entt::registry const& registry)
         }
     }
 
-    // Populate material UBO
-    {
-        size_t const materialUniformAlignment = core::alignAddress(sizeof(MaterialUniform), backendCaps.minUniformBufferOffsetAlignment);
-        size_t const materialUniformBufferSize = materialUniforms.size() * materialUniformAlignment;
-        if (m_materialDataUBO == nullptr || wgpuBufferGetSize(m_materialDataUBO) < materialUniformBufferSize) {
-            WGPUBufferDescriptor materialUBODesc{};
-            materialUBODesc.nextInChain = nullptr;
-            materialUBODesc.label = "Material UBO";
-            materialUBODesc.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform;
-            materialUBODesc.size = materialUniformBufferSize;
-            materialUBODesc.mappedAtCreation = false;
-
-            m_materialDataUBO = wgpuDeviceCreateBuffer(m_renderbackend->getDevice(), &materialUBODesc);
-        }
-
-        for (size_t i = 0; i < materialUniforms.size(); i++)
-        {
-            size_t const offset = materialUniformAlignment * i;
-            wgpuQueueWriteBuffer(m_renderbackend->getQueue(), m_materialDataUBO, offset, &materialUniforms[i], sizeof(MaterialUniform));
-        }
-    }
-
     // Populate object transform UBO
     {
         size_t const objectTransformUniformAlignment = core::alignAddress(sizeof(ObjectTranformUniform), backendCaps.minUniformBufferOffsetAlignment);
@@ -563,6 +594,28 @@ gfx::DrawList Renderer::prepare(entt::registry const& registry)
         {
             size_t const offset = objectTransformUniformAlignment * i;
             wgpuQueueWriteBuffer(m_renderbackend->getQueue(), m_objectTransformDataUBO, offset, &objectTransformUniforms[i], sizeof(ObjectTranformUniform));
+        }
+    }
+
+    // Populate material UBO
+    {
+        size_t const materialUniformAlignment = core::alignAddress(sizeof(MaterialUniform), backendCaps.minUniformBufferOffsetAlignment);
+        size_t const materialUniformBufferSize = materialUniforms.size() * materialUniformAlignment;
+        if (m_materialDataUBO == nullptr || wgpuBufferGetSize(m_materialDataUBO) < materialUniformBufferSize) {
+            WGPUBufferDescriptor materialUBODesc{};
+            materialUBODesc.nextInChain = nullptr;
+            materialUBODesc.label = "Material UBO";
+            materialUBODesc.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform;
+            materialUBODesc.size = materialUniformBufferSize;
+            materialUBODesc.mappedAtCreation = false;
+
+            m_materialDataUBO = wgpuDeviceCreateBuffer(m_renderbackend->getDevice(), &materialUBODesc);
+        }
+
+        for (size_t i = 0; i < materialUniforms.size(); i++)
+        {
+            size_t const offset = materialUniformAlignment * i;
+            wgpuQueueWriteBuffer(m_renderbackend->getQueue(), m_materialDataUBO, offset, &materialUniforms[i], sizeof(MaterialUniform));
         }
     }
 
@@ -587,27 +640,6 @@ gfx::DrawList Renderer::prepare(entt::registry const& registry)
         m_sceneDataBindGroup = wgpuDeviceCreateBindGroup(m_renderbackend->getDevice(), &sceneDataBindGroupDesc);
     }
 
-    // Recreate material data bind group
-    {
-        WGPUBindGroupEntry materialDataMaterialBinding{};
-        materialDataMaterialBinding.nextInChain = nullptr;
-        materialDataMaterialBinding.binding = 0;
-        materialDataMaterialBinding.buffer = m_materialDataUBO;
-        materialDataMaterialBinding.offset = 0;
-        materialDataMaterialBinding.size = core::alignAddress(sizeof(MaterialUniform), backendCaps.minUniformBufferOffsetAlignment);
-
-        WGPUBindGroupEntry materialDataBindGroupEntries[] = { materialDataMaterialBinding, };
-        WGPUBindGroupDescriptor materialDataBindGroupDesc{};
-        materialDataBindGroupDesc.nextInChain = nullptr;
-        materialDataBindGroupDesc.label = "Material Data Bind Group";
-        materialDataBindGroupDesc.layout = m_materialDataBindGroupLayout;
-        materialDataBindGroupDesc.entryCount = std::size(materialDataBindGroupEntries);
-        materialDataBindGroupDesc.entries = materialDataBindGroupEntries;
-
-        if (m_materialDataBindGroup) wgpuBindGroupRelease(m_materialDataBindGroup);
-        m_materialDataBindGroup = wgpuDeviceCreateBindGroup(m_renderbackend->getDevice(), &materialDataBindGroupDesc);
-    }
-
     // Recreate object data bind group
     {
         WGPUBindGroupEntry objectDataObjectTransformBinding{};
@@ -627,6 +659,66 @@ gfx::DrawList Renderer::prepare(entt::registry const& registry)
 
         if (m_objectDataBindGroup) wgpuBindGroupRelease(m_objectDataBindGroup);
         m_objectDataBindGroup = wgpuDeviceCreateBindGroup(m_renderbackend->getDevice(), &objectDataBindGroupDesc);
+    }
+
+    // Recreate material data bind groups
+    {
+        for (auto& bindGroup : m_materialDataBindGroups) {
+            wgpuBindGroupRelease(bindGroup);
+        }
+        m_materialDataBindGroups.clear();
+
+        for (size_t i = 0; i < materialEntries.size(); i++)
+        {
+            auto const& material = materialEntries[i];
+            size_t const materialUniformAlignment = core::alignAddress(sizeof(MaterialUniform), backendCaps.minUniformBufferOffsetAlignment);
+            std::vector<WGPUBindGroupEntry> materialDataBindGroupEntries{};
+            materialDataBindGroupEntries.reserve(5);
+
+            WGPUBindGroupEntry materialDataMaterialBinding{};
+            materialDataMaterialBinding.nextInChain = nullptr;
+            materialDataMaterialBinding.binding = 0;
+            materialDataMaterialBinding.buffer = m_materialDataUBO;
+            materialDataMaterialBinding.offset = i * materialUniformAlignment;
+            materialDataMaterialBinding.size = materialUniformAlignment;
+            materialDataBindGroupEntries.push_back(materialDataMaterialBinding);
+
+            WGPUBindGroupEntry materialDataAlbedoSamplerBinding{};
+            materialDataAlbedoSamplerBinding.nextInChain = nullptr;
+            materialDataAlbedoSamplerBinding.binding = 1;
+            materialDataAlbedoSamplerBinding.sampler = material->albedoTexture->getSampler();
+
+            WGPUBindGroupEntry materialDataAlbedoMapBinding{};
+            materialDataAlbedoMapBinding.nextInChain = nullptr;
+            materialDataAlbedoMapBinding.binding = 2;
+            materialDataAlbedoMapBinding.textureView = material->albedoTexture->getTextureView();
+
+            materialDataBindGroupEntries.push_back(materialDataAlbedoSamplerBinding);
+            materialDataBindGroupEntries.push_back(materialDataAlbedoMapBinding);
+
+            WGPUBindGroupEntry materialDataNormalSamplerBinding{};
+            materialDataNormalSamplerBinding.nextInChain = nullptr;
+            materialDataNormalSamplerBinding.binding = 3;
+            materialDataNormalSamplerBinding.sampler = material->normalTexture->getSampler();
+
+            WGPUBindGroupEntry materialDataNormalMapBinding{};
+            materialDataNormalMapBinding.nextInChain = nullptr;
+            materialDataNormalMapBinding.binding = 4;
+            materialDataNormalMapBinding.textureView = material->normalTexture->getTextureView();
+
+            materialDataBindGroupEntries.push_back(materialDataNormalSamplerBinding);
+            materialDataBindGroupEntries.push_back(materialDataNormalMapBinding);
+
+            WGPUBindGroupDescriptor materialDataBindGroupDesc{};
+            materialDataBindGroupDesc.nextInChain = nullptr;
+            materialDataBindGroupDesc.label = "Material Data Bind Group";
+            materialDataBindGroupDesc.layout = m_materialDataBindGroupLayout;
+            materialDataBindGroupDesc.entryCount = std::size(materialDataBindGroupEntries);
+            materialDataBindGroupDesc.entries = materialDataBindGroupEntries.data();
+
+            WGPUBindGroup materialDataBindGroup = wgpuDeviceCreateBindGroup(m_renderbackend->getDevice(), &materialDataBindGroupDesc);
+            m_materialDataBindGroups.push_back(materialDataBindGroup);
+        }
     }
 
     // Dump some draw call stats
@@ -692,21 +784,20 @@ void Renderer::execute(gfx::FrameState frame, gfx::DrawList const& drawList)
         auto const& mesh = command.mesh;
         assert(mesh != nullptr && !mesh->isDirty() && "Dirty mesh passed to draw command!");
 
-        // Set bind groups with dynamic offsets
+        // Bind correct scene data group
         uint32_t const sceneDataDynamicOffsets[] = {
             static_cast<uint32_t>(command.cameraOffset * core::alignAddress(sizeof(CameraUniform), backendCaps.minUniformBufferOffsetAlignment)),
         };
         wgpuRenderPassEncoderSetBindGroup(renderPass, 0, m_sceneDataBindGroup, std::size(sceneDataDynamicOffsets), sceneDataDynamicOffsets);
 
-        uint32_t const materialDataDynamicOffsets[] = {
-            static_cast<uint32_t>(command.materialOffset * core::alignAddress(sizeof(MaterialUniform), backendCaps.minUniformBufferOffsetAlignment)),
-        };
-        wgpuRenderPassEncoderSetBindGroup(renderPass, 1, m_materialDataBindGroup, std::size(materialDataDynamicOffsets), materialDataDynamicOffsets);
-
+        // Bind correct object data group
         uint32_t const objectDataDynamicOffsets[] = {
             static_cast<uint32_t>(command.objectOffset * core::alignAddress(sizeof(ObjectTranformUniform), backendCaps.minUniformBufferOffsetAlignment)),
         };
-        wgpuRenderPassEncoderSetBindGroup(renderPass, 2, m_objectDataBindGroup, std::size(objectDataDynamicOffsets), objectDataDynamicOffsets);
+        wgpuRenderPassEncoderSetBindGroup(renderPass, 1, m_objectDataBindGroup, std::size(objectDataDynamicOffsets), objectDataDynamicOffsets);
+
+        // Bind correct material data group
+        wgpuRenderPassEncoderSetBindGroup(renderPass, 2, m_materialDataBindGroups[command.materialOffset], 0, nullptr);
 
         // Record mesh draw
         wgpuRenderPassEncoderSetVertexBuffer(renderPass, 0, mesh->getVertexBuffer(), 0, mesh->vertexCount() * sizeof(gfx::Vertex));

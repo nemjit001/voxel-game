@@ -64,6 +64,10 @@ namespace gfx
 		/// @param texture 
 		void setTexture(WGPUTexture texture);
 
+		/// @brief Set the device-side sampler handle. Takes ownership of this sampler.
+		/// @param sampler 
+		void setSampler(WGPUSampler sampler);
+
 		/// @brief Get the device-side texture handle.
 		/// @return 
 		WGPUTexture getTexture() const { return m_texture; }
@@ -71,6 +75,10 @@ namespace gfx
 		/// @brief Get the device-side texture view handle.
 		/// @return 
 		WGPUTextureView getTextureView() const { return m_textureView; }
+
+		/// @brief Get the device-side texture sampler handle.
+		/// @return 
+		WGPUSampler getSampler() const { return m_sampler; }
 
 	private:
 		bool					m_dirty			= true;
@@ -80,5 +88,6 @@ namespace gfx
 		std::vector<uint8_t>	m_data			= {};	// Texture data stored as byte array.
 		WGPUTexture				m_texture		= nullptr;
 		WGPUTextureView			m_textureView	= nullptr;
+		WGPUSampler				m_sampler		= nullptr;
 	};
 } // namespace gfx

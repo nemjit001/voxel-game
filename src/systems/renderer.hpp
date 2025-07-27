@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 #include <entt/entt.hpp>
 #include <glm/glm.hpp>
 
@@ -72,22 +73,22 @@ private:
     std::shared_ptr<gfx::RenderBackend> m_renderbackend;
 
     // Render pass resources
-    WGPUTexture         m_depthStencilTarget            = nullptr;
-    WGPUTextureView     m_depthStencilTargetView        = nullptr;
+    WGPUTexture                 m_depthStencilTarget            = nullptr;
+    WGPUTextureView             m_depthStencilTargetView        = nullptr;
 
-    WGPUBuffer          m_cameraDataUBO                 = nullptr;
-    WGPUBuffer          m_materialDataUBO               = nullptr;
-    WGPUBuffer          m_objectTransformDataUBO        = nullptr;
+    WGPUBuffer                  m_cameraDataUBO                 = nullptr;
+    WGPUBuffer                  m_objectTransformDataUBO        = nullptr;
+    WGPUBuffer                  m_materialDataUBO               = nullptr;
 
     // Pipeline resources
-    WGPUBindGroupLayout m_sceneDataBindGroupLayout      = nullptr;
-    WGPUBindGroupLayout m_materialDataBindGroupLayout   = nullptr;
-    WGPUBindGroupLayout m_objectDataBindGroupLayout     = nullptr;
-    WGPUPipelineLayout  m_pipelineLayout                = nullptr;
-    WGPURenderPipeline  m_pipeline                      = nullptr;
+    WGPUBindGroupLayout         m_sceneDataBindGroupLayout      = nullptr;
+    WGPUBindGroupLayout         m_objectDataBindGroupLayout     = nullptr;
+    WGPUBindGroupLayout         m_materialDataBindGroupLayout   = nullptr;
+    WGPUPipelineLayout          m_pipelineLayout                = nullptr;
+    WGPURenderPipeline          m_pipeline                      = nullptr;
 
     // Pipeline bind groups
-    WGPUBindGroup       m_sceneDataBindGroup            = nullptr;
-    WGPUBindGroup       m_materialDataBindGroup         = nullptr;
-    WGPUBindGroup       m_objectDataBindGroup           = nullptr;
+    WGPUBindGroup               m_sceneDataBindGroup            = nullptr;
+    WGPUBindGroup               m_objectDataBindGroup           = nullptr;
+    std::vector<WGPUBindGroup>  m_materialDataBindGroups        = {};
 };

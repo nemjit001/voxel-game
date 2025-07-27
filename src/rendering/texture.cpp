@@ -31,6 +31,10 @@ namespace gfx
 		if (m_textureView) {
 			wgpuTextureViewRelease(m_textureView);
 		}
+
+		if (m_sampler) {
+			wgpuSamplerRelease(m_sampler);
+		}
 	}
 
 	void Texture::setTexture(WGPUTexture texture)
@@ -44,5 +48,15 @@ namespace gfx
 
 		m_texture = texture;
 		m_textureView = wgpuTextureCreateView(m_texture, nullptr /* assume default view */);
+	}
+
+	void Texture::setSampler(WGPUSampler sampler)
+	{
+		assert(sampler != nullptr && "Sampler handle cannot be a nullptr");
+		if (m_sampler) {
+			wgpuSamplerRelease(m_sampler);
+		}
+
+		m_sampler = sampler;
 	}
 } // namespace gfx
